@@ -1,0 +1,42 @@
+# Declare relationships between local and remote paths
+mounts:
+
+  - local: ~/.composer/
+    remote: /home/vagrant/.composer/
+    
+    once:
+      # Copy user’s ~/.composer directory into the VM on startup
+      # This includes the auth.json file (if present).
+      - mode: push:
+        path: .
+
+  - local: .
+    remote: /vagrant/
+    
+    once:
+	  # Do bring the vendor directory back locally, on startup.
+	  # PHP Storm wants these files for debugging purposes.
+	  - mode: pull
+	    path: vendor/
+
+	# Sync on start up, then watch for ongoing updates
+	watch:
+	  - mode: sync
+	    path: .               # 2-way sync by default
+	    exclude: 
+	      - Vagrantfile     # No need to copy Vagrantfile
+	      - .vagrant/       # Do not copy images
+	  	  - .git/           # Do not copy GIT repo
+     	  - .gitignore      # Do not copy Git support file
+		  - .gitattributes  # Do not copy Git support file
+		  - var/            # Do not copy Magento temp files
+		  - pub/media/      # Don't wipe uploaded media files 
+		  - pub/static/     # Don't wipe generated assets 
+		  - vendor/         # Compose download area
+		  - .idea/          # PHP Storm project files
+		  - app/etc/env.php # Don't overwrite DB settings
+		  - .magento        # Used by Magento Cloud
+		  
+	  - mode: pull
+	    path: var/generated/  # Oh, but we do want generated code!
+	    
