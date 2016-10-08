@@ -21,7 +21,6 @@ public class SyncTreeWalker {
 		this.toServer = toServer;
 		this.config = config;
 		this.pathResolver = pathResolver;
-//		this.paths = parseToServer(config.once);
 	}
 	
 	public void clientToServerWalk() {
@@ -35,6 +34,8 @@ public class SyncTreeWalker {
 	}
 	
 	public void serverToClientWalk() {
+		if (config == null) System.out.println("config null");
+		if (config.mounts == null) System.out.println("config.mounts null");
 		for (Mount m : config.mounts) {
 			for (SyncRule sr : m.once) {
 				if (sr.mode.equals("pull") || sr.mode.equals("sync")) {

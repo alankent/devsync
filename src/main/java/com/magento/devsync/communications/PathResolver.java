@@ -1,14 +1,25 @@
 package com.magento.devsync.communications;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
 
 //TODO: THIS NEEDS TO TAKE INTO ACCOUNT MOUNTS FOR SERVER SIDE MAPPINGS.
 //TOOD: NEEDS TO SUPPORT ~ FOR HOME DIRECTORY AS WELL IN CLIENT SIDE MAPPINGS.
 public abstract class PathResolver {
 	
 	public static String fingerprint(File localPath) {
-		return null;
-		
+		// TODO:
+//		MessageDigest md = MessageDigest.getInstance("MD5");
+//		try (InputStream is = Files.newInputStream(localPath);
+//		     DigestInputStream dis = new DigestInputStream(is, md)) {
+//		  /* Read decorated stream (dis) to EOF as normal... */
+//		}
+//		byte[] digest = md.digest();
+		return Long.toString(localPath.length());
 	}
 	
 	abstract public File localPath(String abstractPath);

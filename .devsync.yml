@@ -1,0 +1,7 @@
+mounts:
+  - local: foo
+    remote: /tmp/foo
+    once:
+      - mode: sync
+        path: blah.txt
+        

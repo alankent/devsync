@@ -5,13 +5,14 @@ import java.util.List;
 
 import com.magento.devsync.communications.PathResolver;
 import com.magento.devsync.config.Mount;
+import com.magento.devsync.config.YamlFile;
 
 public class ServerPathResolver extends PathResolver {
 	
 	private final List<Mount> mounts;
 
-	public ServerPathResolver(List<Mount> mounts) {
-		this.mounts = mounts;
+	public ServerPathResolver(YamlFile config) {
+		this.mounts = config.mounts;
 	}
 	
 	/**
@@ -21,7 +22,7 @@ public class ServerPathResolver extends PathResolver {
 	@Override
 	public File localPath(String abstractPath) {
 		// TODO Auto-generated method stub
-		return null;
+		return new File(abstractPath);
 	}
 
 	/**

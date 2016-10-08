@@ -10,6 +10,7 @@ import java.nio.charset.Charset;
 import java.util.List;
 
 import com.magento.devsync.config.Mount;
+import com.magento.devsync.config.YamlFile;
 
 /**
  * Serializes a request and sends it over the network connection to the other endpoint.
@@ -24,55 +25,52 @@ public class SendMessage implements ProtocolSpec {
 	}
 	
 	public void checkProtocolVersion(int version) {
+		log("SEND: Check protocol version");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.CHECK_PROTOCOL_VERSION);
 		writeInteger(bb, version);
 		sendMessage(bb);
 	}
 	
-	public void setMountPoints(List<Mount> mounts) {
+	public void setMountPoints(YamlFile config) {
+		log("SEND: Send configuration file to server");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.SET_MOUNT_POINTS);
-		writeInteger(bb, mounts.size());
-		for (Mount m: mounts) {
-			writeString(bb, m.local);
-			writeString(bb, m.remote);
-		}
+		writeString(bb, config.contents);
 		sendMessage(bb);
 	}
 	
 	public void errorMessage(String message) {
+		log("SEND: Error: " + message);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.ERROR_MESSAGE);
 		writeString(bb, message);
 		sendMessage(bb);
 	}
 	
-	public void initialSync(List<InclusionExclusionPath> pathList) {
+	public void initialSync() {
+		log("SEND: Trigger server initial sync");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.INITIAL_SYNC);
-		writeInteger(bb, pathList.size());
-		for (InclusionExclusionPath p : pathList) {
-			writeBoolean(bb, p.exclude);
-			writeString(bb, p.pathPattern);
-		}
 		sendMessage(bb);
 	}
 
 	public void syncComplete() {
+		log("SEND: Server sync complete");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.SYNC_COMPLETE);
 		sendMessage(bb);
 	}
 
-	public void watchList(Object configuration) {
+	public void watchList() {
+		log("SEND: Server, start watching file system!");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.WATCH_LIST);
-		// TODO: Config
 		sendMessage(bb);
 	}
 
 	public void pathFingerprint(String path, String fingerprint) {
+		log("SEND: Fingerprint: " + path + " " + fingerprint);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.PATH_FINGERPRINT);
 		writeString(bb, path);
@@ -81,6 +79,7 @@ public class SendMessage implements ProtocolSpec {
 	}
 
 	public void pathDeleted(String path) {
+		log("SEND: Delete: " + path);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.PATH_DELETED);
 		writeString(bb, path);
@@ -88,6 +87,7 @@ public class SendMessage implements ProtocolSpec {
 	}
 
 	public void sendMeFile(String path) {
+		log("SEND: Send me file: " + path);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.SEND_ME_FILE);
 		writeString(bb, path);
@@ -95,6 +95,7 @@ public class SendMessage implements ProtocolSpec {
 	}
 
 	public void writeFile(String path, int mode, File contents) {
+		log("SEND: Write file to disk: " + path + " " + mode);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.WRITE_FILE);
 		writeString(bb, path);
@@ -104,6 +105,7 @@ public class SendMessage implements ProtocolSpec {
 	}
 
 	public void createDirectory(String path, int mode) {
+		log("SEND: Create directory: " + path + " " + mode);
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
 		bb.write(ProtocolSpec.CREATE_DIRECTORY);
 		writeString(bb, path);
@@ -143,5 +145,9 @@ public class SendMessage implements ProtocolSpec {
 		} catch (Exception e) {
 			throw new RuntimeException("Error writing to socket", e);
 		}
+	}
+	
+	private void log(String message) {
+		System.out.println(message);
 	}
 }

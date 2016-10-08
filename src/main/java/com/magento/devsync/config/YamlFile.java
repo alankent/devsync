@@ -13,38 +13,44 @@ public class YamlFile {
 	@JsonProperty
     public List<Mount> mounts;
     
+	public String contents;
 	
-	public static YamlFile readYaml(File file) {
+	public static YamlFile parseYaml(String yamlFile) {
 	    final ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // jackson databind
 	    try {
-			YamlFile yf = mapper.readValue(file, YamlFile.class);
-			
-			// Do some basic validation of the config file.
-			if (yf.mounts == null) {
-				yf.mounts = new ArrayList<>();
-			}
-			for (Mount m : yf.mounts) {
-				if (m.local == null) {
-					throw new RuntimeException("'local' missing from mount definition");
-				}
-				m.local = cleanPath(m.local);
-				if (m.remote == null) {
-					throw new RuntimeException("'remote' missing from mount definition");
-				}
-				m.remote = cleanPath(m.remote);
-				if (m.once == null) {
-					m.once = new ArrayList<>();
-				}
-				checkSyncRules(m.once);
-				if (m.watch == null) {
-					m.watch = new ArrayList<>();
-				}
-				checkSyncRules(m.watch);
-			}
+			YamlFile yf = mapper.readValue(yamlFile, YamlFile.class);
+			yf.contents = yamlFile;
+			validateConfig(yf);
 			return yf;
 		} catch (Exception e) {
-			throw new RuntimeException("Failed to read configuration file '" + file + "'.", e);
+			throw new RuntimeException("Failed to read configuration file.", e);
 		}
+	}
+	
+	private static void validateConfig(YamlFile config) {
+		// Do some basic validation of the config file.
+		if (config.mounts == null) {
+			config.mounts = new ArrayList<>();
+		}
+		for (Mount m : config.mounts) {
+			if (m.local == null) {
+				throw new RuntimeException("'local' missing from mount definition");
+			}
+			m.local = cleanPath(m.local);
+			if (m.remote == null) {
+				throw new RuntimeException("'remote' missing from mount definition");
+			}
+			m.remote = cleanPath(m.remote);
+			if (m.once == null) {
+				m.once = new ArrayList<>();
+			}
+			checkSyncRules(m.once);
+			if (m.watch == null) {
+				m.watch = new ArrayList<>();
+			}
+			checkSyncRules(m.watch);
+		}
+
 	}
 
 	private static void checkSyncRules(List<SyncRule> syncRules) {

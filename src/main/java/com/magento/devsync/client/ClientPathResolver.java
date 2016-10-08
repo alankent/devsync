@@ -9,13 +9,13 @@ public class ClientPathResolver extends PathResolver {
 	@Override
 	public File localPath(String abstractPath) {
 		// TODO Auto-generated method stub
-		return null;
+		return new File(abstractPath); // TODO: THIS IS WRONG
 	}
 
 	@Override
 	public String abstractPath(File localPath) {
 		// TODO Auto-generated method stub
-		return null;
+		return localPath.getPath();// TODO: THIS IS WRONG
 	}
 
 }

@@ -4,58 +4,51 @@ import java.io.InputStream;
 
 import com.magento.devsync.communications.ProtocolSpec;
 import com.magento.devsync.communications.ReceiveMessage;
+import com.magento.devsync.communications.SendMessage;
 import com.magento.devsync.communications.SyncTreeWalker;
 import com.magento.devsync.config.YamlFile;
 
 public class Client {
 
-	private ProtocolSpec toServer;
+	private SendMessage toServer;
 	private InputStream fromServer;
 	private YamlFile config;
 	private ReceiveMessage listener;
-	private Thread listenerThread;
 	private ClientPathResolver clientPathResolver;
+	private boolean startWatchMode = false;
+	private Object lock = new Object();
+	private ClientFileSyncThread clientSyncThread;
 	
-	private Client(ProtocolSpec toServer, InputStream fromServer, YamlFile config) {
+	public Client(SendMessage toServer, InputStream fromServer, YamlFile config) {
 		
 		this.toServer = toServer;
 		this.fromServer = fromServer;
 		this.config = config;
 		this.clientPathResolver = new ClientPathResolver();
 		
-		listener = new ReceiveMessage(fromServer, toServer, this);
-		listenerThread = new Thread(listener);
-		listenerThread.start();
+		listener = new ReceiveMessage(fromServer, toServer, this, config);
+		clientSyncThread = new ClientFileSyncThread(toServer, fromServer, config, clientPathResolver);
+
 	}
 
 	/**
-	 * Walk through all the mount points, then all inclusions that match
-	 * the mount points, and walk the directory tree from those points,
-	 * skipping exclusions. Send file and directory fingerprints to servers.
+	 * Main execution of client - listens for requests from the server
+	 * which can come at any time, plus goes through the phases of file
+	 * syncing.
 	 */
-	public void clientToServerSync() {
-		SyncTreeWalker walker = new SyncTreeWalker(toServer, config, clientPathResolver);
-		walker.clientToServerWalk();
-	}
-
-	public void watchMode() {
-		// TODO Auto-generated method stub
-		//
-	}
-
-	public void runUntilSyncComplete() {
-		// TODO Auto-generated method stub
+	public void run() {
 		
+		toServer.checkProtocolVersion(ProtocolSpec.PROTOCOL_VERSION);
+		toServer.setMountPoints(config);
+		
+		// Use separate thread to do syncing.
+		new Thread(clientSyncThread).start();
+		
+		// Current thread will read and process server requests.
+		listener.run();
 	}
 
 	public void syncComplete() {
-		// TODO Auto-generated method stub
-		
-	}
-
-	public static Client start(final ProtocolSpec toServer,
-							   final InputStream fromServer,
-							   final YamlFile config) {
-		return new Client(toServer, fromServer, config);
+		clientSyncThread.syncComplete();
 	}
 }

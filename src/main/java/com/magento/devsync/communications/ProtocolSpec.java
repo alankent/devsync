@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.List;
 
 import com.magento.devsync.config.Mount;
+import com.magento.devsync.config.YamlFile;
 
 public interface ProtocolSpec {
 	
@@ -37,7 +38,7 @@ public interface ProtocolSpec {
 	 *            List of mount points, needed by server to convert client paths
 	 *            into server path names.
 	 */
-	public void setMountPoints(List<Mount> mounts);
+	public void setMountPoints(YamlFile config);
 	
 	/**
 	 * Send an error message from the server to the client for display on the screen.
@@ -50,7 +51,7 @@ public interface ProtocolSpec {
 	 * done, a INITIAL-SYNC message is sent to the server, causing the server to
 	 * then check for any files it should be sending back.
 	 */
-	public void initialSync(List<InclusionExclusionPath> pathList);
+	public void initialSync();
 
 	/**
 	 * When the server completes its INITIAL-SYNC, it sends a SYNC-COMPLETE
@@ -63,7 +64,7 @@ public interface ProtocolSpec {
 	 * Sent from client to server at startup after initial synchronization has
 	 * occurred to tell the server what files and directories to watch.
 	 */
-	public void watchList(Object configuration);
+	public void watchList();
 
 	/**
 	 * One endpoint is telling the other endpoint that a file or directory
