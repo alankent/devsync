@@ -62,7 +62,10 @@ public class ClientFileSyncThread implements Runnable {
 		
 		//TODO: watchFileSystem();
 	}
-
+ 
+	/**
+	 * Signal the client thread to go into file system watching mode.
+	 */
 	public void syncComplete() {
 		synchronized (lock) {
 			startWatchMode = true;

@@ -46,10 +46,8 @@ public class Server implements Runnable {
 		receiver = new ReceiveMessage(socket.getInputStream(), sender, this);
 	}
 
-	public void setMountPoints(YamlFile config) {
-		System.out.println("IN SERVER SET-MOUNT-POINTS");
-		if (config == null) System.out.println("Config is NUL in SET-MOUNT");
-		if (config != null) System.out.println("Config is NUL in SET-MOUNT");
+	public void setConfig(YamlFile config) {
+		System.out.println("IN SERVER SET-CONFIG");
 		this.config = config;
 		this.pathResolver = new ServerPathResolver(config);
 		receiver.setPathResovler(this.pathResolver, config);
@@ -59,18 +57,13 @@ public class Server implements Runnable {
 	 * This is called by the receiver thread.
 	 * To avoid deadlocks, spawn a separate thread so caller can go back
 	 * waiting for the next request in parallel.
-	 * @param paths
 	 */
 	public void initialSync() {
 		System.err.println("In INITIAL-SYNC");
-		if (config == null) System.out.println("config is null (1)");
-		if (config != null) System.out.println("config is NOT null (1)");
 		
 		new Thread(new Runnable() {
 			public void run() {
 				
-				if (config == null) System.out.println("config is null (2)");
-				if (config != null) System.out.println("config is NOT null (2)");
 				SyncTreeWalker walker = new SyncTreeWalker(sender, config, pathResolver);
 				walker.serverToClientWalk();
 				
@@ -82,6 +75,17 @@ public class Server implements Runnable {
 	@Override
 	public void run() {
 		receiver.run();
+	}
+
+	public void startWatching() {
+		
+		new Thread(new Runnable() {
+			public void run() {
+				
+				//TODO: Watch file system, sending client updates on modified files.
+				
+			}
+		}).start();
 	}
 
 }

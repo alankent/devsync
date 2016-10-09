@@ -32,10 +32,10 @@ public class SendMessage implements ProtocolSpec {
 		sendMessage(bb);
 	}
 	
-	public void setMountPoints(YamlFile config) {
+	public void setConfig(YamlFile config) {
 		log("SEND: Send configuration file to server");
 		ByteArrayOutputStream bb = new ByteArrayOutputStream();
-		bb.write(ProtocolSpec.SET_MOUNT_POINTS);
+		bb.write(ProtocolSpec.SET_CONFIG);
 		writeString(bb, config.contents);
 		sendMessage(bb);
 	}

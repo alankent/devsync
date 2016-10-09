@@ -8,7 +8,22 @@ public class DevsyncServerMain {
 
 	public static void main(String[] args) throws IOException {
 		
-		int portNumber = Integer.parseInt(args[0]);
+		String port;
+		if (args.length > 0) {
+			port = args[0];
+		} else {
+			port = System.getenv("DEVSYNC_PORT");
+			if (port == null || port.length() == 0) {
+				port = System.getProperty("devsync.port");
+				if (port == null) {
+					System.out.println("Please supply port number to listen on.");
+					return;
+				}
+			}
+		}
+
+		int portNumber = Integer.parseInt(port);
+		
 		System.out.println("Server listening on port " + portNumber);
 		try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
 			while (true) {
@@ -18,5 +33,4 @@ public class DevsyncServerMain {
 			}
 		}
 	}
-
 }

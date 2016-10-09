@@ -20,7 +20,7 @@ public interface ProtocolSpec {
 	public static final byte SEND_ME_FILE = 7; 
 	public static final byte WRITE_FILE = 8;
 	public static final byte CREATE_DIRECTORY = 9;
-	public static final byte SET_MOUNT_POINTS = 10;
+	public static final byte SET_CONFIG = 10;
 	
 	
 	/**
@@ -38,7 +38,7 @@ public interface ProtocolSpec {
 	 *            List of mount points, needed by server to convert client paths
 	 *            into server path names.
 	 */
-	public void setMountPoints(YamlFile config);
+	public void setConfig(YamlFile config);
 	
 	/**
 	 * Send an error message from the server to the client for display on the screen.

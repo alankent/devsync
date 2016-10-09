@@ -83,10 +83,12 @@ public class ReceiveMessage implements Runnable {
 			bb.flip();
 			int payloadLength = bb.getInt();
 
+			// Read payload body, now we know the length.
 			ByteBuffer payload = ByteBuffer.allocate(payloadLength);
 			readBytes(payload, payloadLength);
 			payload.flip();
 			
+			// First byte is the 'command'.
 			int command = payload.get();
 			
 			switch (command) {
@@ -102,14 +104,16 @@ public class ReceiveMessage implements Runnable {
 					break;
 				}
 				
-				case ProtocolSpec.SET_MOUNT_POINTS: {
+				case ProtocolSpec.SET_CONFIG: {
+					// Send the whole YAML config file, which is a little
+					// hacky (but easy to get going with).
 					log("RECV: set config");
 					String yamlFile = getString(payload);
 					config = YamlFile.parseYaml(yamlFile);
 					if (server != null) {
-						server.setMountPoints(config);
+						server.setConfig(config);
 					} else {
-						throw new RuntimeException("SET-MOUNT-POINTS should never be sent to client");
+						throw new RuntimeException("SET-CONFIG should never be sent to client");
 					}
 					break;
 				}
@@ -144,7 +148,7 @@ public class ReceiveMessage implements Runnable {
 				case ProtocolSpec.WATCH_LIST: {
 					log("RECV: watch file changes");
 					if (server != null) {
-						//TODO: START WATCHING FILES: server.watchList();
+						server.startWatching();
 					} else {
 						throw new RuntimeException("WATCH-LIST should never be sent to client");
 					}
@@ -181,6 +185,8 @@ public class ReceiveMessage implements Runnable {
 					int mode = bb.getInt();
 					long fileLength = bb.getLong();
 					//TODO: writeFile(path, mode, pathResolver.localPath(path));
+					//TODO: Also don't want to write file if it was updated recently,
+					// or does file watching code worry about that?
 					break;
 				}
 
