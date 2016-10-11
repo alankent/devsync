@@ -8,7 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-import com.magento.devsync.communications.SendMessage;
+import com.magento.devsync.communications.Channel;
+import com.magento.devsync.communications.ChannelMultiplexer;
+import com.magento.devsync.communications.Logger;
+import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.server.DevsyncServerMain;
 
@@ -19,6 +22,8 @@ import com.magento.devsync.server.DevsyncServerMain;
 public class DevsyncClientMain {
 	
 	public static final String VERSION = "0.1";
+	
+	private static Logger logger;
 
 	public static void main(String[] args) {
 		
@@ -28,36 +33,50 @@ public class DevsyncClientMain {
 			try {
 				new Thread(new Runnable() { 
 					public void run() {
-						System.setOut(System.err);
+//						System.setOut(System.err);
 						try {
 							DevsyncServerMain.main(new String[] {"12345"});
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
 					}
-				}).start();
+				}, "Server-Main-Program").start();
 				Thread.sleep(1);
 			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
 		}
+		
+		logger = new Logger("C");
 
 		try {
-			System.out.println("Devsync version " + VERSION + "\n");
+			logger.log("Devsync version " + VERSION + "\n");
 			byte[] encoded = Files.readAllBytes(Paths.get(getConfigFile()));
 			String yamlContents = new String(encoded, StandardCharsets.UTF_8);
 			YamlFile config = YamlFile.parseYaml(yamlContents);
 			
-			System.out.println("* Connecting to server\n");
+			logger.log("* Connecting to server\n");
 			
 			String host = getHost();
 			int portNum = getPort();
 			
 			try (Socket sock = new Socket(host, portNum)) {
-				Client client = new Client(sock, config);
-				client.run();
+				logger.log("Connected to server.");
+				
+				ChannelMultiplexer multiplexer = new ChannelMultiplexer(sock, logger);
+				Channel toServerChannel = new Channel(0, multiplexer);
+				Channel fromServerChannel = new Channel(1, multiplexer);
+				new Thread(multiplexer, "Client-Multiplexer").start();
+				
+				ClientMaster master = new ClientMaster(toServerChannel, config, logger);
+
+				ClientSlave slave = new ClientSlave(fromServerChannel, config, logger, master);
+				new Thread(slave, "Client-Slave").start();
+
+				master.run();
+				
 			} catch (Exception e) {
-				System.out.println("Failed to connect to " + host + ":" + portNum + ". " + e.getMessage());
+				e.printStackTrace();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -69,7 +88,7 @@ public class DevsyncClientMain {
 		if (host == null || host.equals("")) {
 			host = System.getProperty("devsync.host");
 			if (host == null || host.equals("")) {
-				System.out.println("Environment variable DEVSYNC_HOST is not set.");
+				logger.log("Environment variable DEVSYNC_HOST is not set.");
 				System.exit(1);
 			}
 		}

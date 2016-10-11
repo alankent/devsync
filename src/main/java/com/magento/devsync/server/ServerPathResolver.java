@@ -9,10 +9,10 @@ import com.magento.devsync.config.YamlFile;
 
 public class ServerPathResolver extends PathResolver {
 	
-	private final List<Mount> mounts;
+	private YamlFile config;
 
 	public ServerPathResolver(YamlFile config) {
-		this.mounts = config.mounts;
+		this.config = config;
 	}
 	
 	/**
@@ -21,17 +21,22 @@ public class ServerPathResolver extends PathResolver {
 	 */
 	@Override
 	public File localPath(String abstractPath) {
-		// TODO Auto-generated method stub
-		return new File(abstractPath);
+		// Go through the mount list to see if any of the prefixes match,
+		// and if so replace the local path prefix with the remote path prefix.
+		Mount lastAttempt = null;
+		for (Mount m : config.mounts) {
+			if (m.local.length() == 0 || m.local.equals(".")) {
+				lastAttempt = m;
+			} else {
+				String prefix = m.local + "/";
+				if (abstractPath.startsWith(prefix)) {
+					return new File(m.remote + "/" + abstractPath.substring(prefix.length()));
+				}
+			}
+		}
+		if (lastAttempt != null) {
+			return new File(lastAttempt.remote + "/" + abstractPath);
+		}
+		throw new RuntimeException("Unable to convert " + abstractPath + " to server path.");
 	}
-
-	/**
-	 * Convert a server path into a client path, using list of mount points.
-	 */
-	@Override
-	public String abstractPath(File localPath) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
 }

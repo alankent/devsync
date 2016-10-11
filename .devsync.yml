@@ -1,6 +1,6 @@
 mounts:
-  - local: foo
-    remote: /tmp/foo
+  - local: foo/client
+    remote: foo/server
     once:
       - mode: sync
         path: blah.txt

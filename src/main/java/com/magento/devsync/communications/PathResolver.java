@@ -1,47 +1,52 @@
 package com.magento.devsync.communications;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 
-//TODO: THIS NEEDS TO TAKE INTO ACCOUNT MOUNTS FOR SERVER SIDE MAPPINGS.
-//TOOD: NEEDS TO SUPPORT ~ FOR HOME DIRECTORY AS WELL IN CLIENT SIDE MAPPINGS.
+import javax.xml.bind.DatatypeConverter;
+
+import com.magento.devsync.config.Mount;
+import com.magento.devsync.config.SyncRule;
+
 public abstract class PathResolver {
-	
-	public static String fingerprint(File localPath) {
-		// TODO:
-//		MessageDigest md = MessageDigest.getInstance("MD5");
-//		try (InputStream is = Files.newInputStream(localPath);
-//		     DigestInputStream dis = new DigestInputStream(is, md)) {
-//		  /* Read decorated stream (dis) to EOF as normal... */
-//		}
-//		byte[] digest = md.digest();
-		return Long.toString(localPath.length());
-	}
-	
-	abstract public File localPath(String abstractPath);
-	
-	abstract public String abstractPath(File localPath);
 
 	/**
-	 * Return file permissions mode of specified file or directory.
-	 * @param f File to return mode of.
-	 * @return The file mode.
+	 * Convert a client relative path to a real file name that can be used to open files.
+	 * On the client, "~/" is permitted at the start of the path to refer to the users home directory.
+	 * On the server, the configuration file mapping is used.
 	 */
-	public static int mode(File f) {
-		return f.canExecute() ? 1 : 0;
+	abstract public File localPath(String abstractPath);
+	
+	public static String fingerprint(File localPath) {
+		// MD5 checksum the file.
+		String fingerprint = localPath.canExecute() ? "exe-" : "plain-";
+		try {
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			byte[] readBuf = new byte[8192];
+			try (InputStream is = new FileInputStream(localPath);
+					DigestInputStream dis = new DigestInputStream(is, md)) {
+				while (dis.read(readBuf) >= 0) {
+					// Empty - it is merging into the MD5 checksum.
+				}
+			}
+			byte[] digest = md.digest();
+			fingerprint += DatatypeConverter.printHexBinary(digest);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to form fingerprint of " + localPath, e);
+		}
+		return fingerprint;
 	}
 	
-//	/**
-//	 * Change the file permissions of the specified file or directory.
-//	 * @param f File/directory to change.
-//	 * @param mode The new mode to set.
-//	 */
-//	public static void changeMode(File f, int mode) {
-//		XXX
-//	}
-
+	/**
+	 * Create a local path by joining the mount path and sync rule path.
+	 */
+	public static String path(Mount m, SyncRule sr) {
+		if (m.local == null || m.local == "" || m.local == ".") {
+			return sr.path;
+		}
+		return m.local + "/" + sr.path;
+	}
 }

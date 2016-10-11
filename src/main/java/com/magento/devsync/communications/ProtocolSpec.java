@@ -1,6 +1,7 @@
 package com.magento.devsync.communications;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 import com.magento.devsync.config.Mount;
@@ -10,97 +11,104 @@ public interface ProtocolSpec {
 	
 	public static final int PROTOCOL_VERSION = 1;
 	
+	/**
+	 * Immediately after socket is opened, client sends the protocol version to
+	 * the server. The server responds with OK or NOT_OK.
+	 */
 	public static final byte CHECK_PROTOCOL_VERSION = 0;
-	public static final byte ERROR_MESSAGE = 1;
-	public static final byte INITIAL_SYNC = 2; 
-	public static final byte SYNC_COMPLETE = 3; 
-	public static final byte WATCH_LIST = 4;
-	public static final byte PATH_FINGERPRINT = 5; 
-	public static final byte PATH_DELETED = 6;
-	public static final byte SEND_ME_FILE = 7; 
-	public static final byte WRITE_FILE = 8;
-	public static final byte CREATE_DIRECTORY = 9;
-	public static final byte SET_CONFIG = 10;
-	
 	
 	/**
-	 * Immediately after socket is opened, client sends the protocol version and
-	 * config file to the server. The server can then close the socket if the
-	 * version is not supported.
+	 * After the protocol version handshake completes, the client sends the
+	 * config file to the server (this happens after protocol version handshake
+	 * in case this step changes in future versions. The server responds with OK
+	 * or NOT_OK.
 	 */
-	public void checkProtocolVersion(int version);
-	
-	/**
-	 * Tell the server the list of mount points to use. This is sent immediately
-	 * after the protocol version is sent.
-	 * 
-	 * @param mounts
-	 *            List of mount points, needed by server to convert client paths
-	 *            into server path names.
-	 */
-	public void setConfig(YamlFile config);
-	
-	/**
-	 * Send an error message from the server to the client for display on the screen.
-	 */
-	public void errorMessage(String message);
+	public static final byte SET_CONFIG = 1;
 
 	/**
 	 * At startup, the client first scans all its local paths that may need to
 	 * be sent to the server sending a PATH-FINGERPRINT message per path. When
-	 * done, a INITIAL-SYNC message is sent to the server, causing the server to
-	 * then check for any files it should be sending back.
+	 * done, a START-SERVER-SYNC message is sent to the server, causing the server to
+	 * then check for any files it should be sending back. A response is
+	 * always returned of OK or NOT-OK.
 	 */
-	public void initialSync();
-
+	public static final byte START_SERVER_SYNC = 2;
+	
 	/**
-	 * When the server completes its INITIAL-SYNC, it sends a SYNC-COMPLETE
-	 * message back so the client knows the process is done. (The client will
-	 * then send the WATCH-LIST message to start up the file-watching mode.)
+	 * When the server completes its SERVER-SYNC, it sends a SYNC-COMPLETE
+	 * message back so the client knows the process is done. The client responds
+	 * with OK or NOT-OK, after which the client and server both enter file
+	 * watching mode. 
 	 */
-	public void syncComplete();
-
-	/**
-	 * Sent from client to server at startup after initial synchronization has
-	 * occurred to tell the server what files and directories to watch.
-	 */
-	public void watchList();
-
+	public static final byte SERVER_SYNC_COMPLETE = 3;
+	
 	/**
 	 * One endpoint is telling the other endpoint that a file or directory
 	 * should exist with the specified fingerprint. If it already exists, that
-	 * is good. If it does not exist (or is different), the other endpoint
-	 * should respond with a SEND-ME-FILE to request a copy of the file. This
-	 * message is sent during the initial file synchronization process or later
-	 * if a local file change was detected, but the file was recently received
-	 * from the other endpoint. (For the latter, the file update message was
-	 * probably due to the WRITE-FILE message
+	 * is good. If it does not exist (or is different), the response should be
+	 * SEND-ME-FILE to request a copy of the file. This message is sent during
+	 * the initial file synchronization process or later if a local file change
+	 * was detected, but the file was recently received from the other endpoint.
+	 * (For the latter, the file update message was probably due to the
+	 * WRITE-FILE message. The response is a OK (the other end point has the
+	 * file already), NO-OK (something went wrong), or SEND-ME-FILE (a copy is
+	 * needed after looking at the fingerprint). A separate WRITE-FILE request
+	 * is triggered next.
 	 */
-	public void pathFingerprint(String path, String fingerprint);
+	public static final byte PATH_FINGERPRINT = 4;
+	
+	/**
+	 * A response code to a fingerprint request, indicating the file is
+	 * different so a copy should be sent.
+	 */
+	public static final byte SEND_ME_FILE = 5; 
 
 	/**
-	 * Sent when a local file or directory has been deleted, for a file matching
-	 * the watch list.
+	 * Initiate writing a file, with a response of OK or NOT-OK. This will be
+	 * followed by a series of MORE-DATA messages (each with OK/NOT-OK) and
+	 * finally a END-OF-DATA message (with OK/NOT-OK).
 	 */
-	public void pathDeleted(String path);
+	public static final byte WRITE_FILE = 6;
 
 	/**
-	 * A request for a specified file to be send via a WRITE-FILE request. The
-	 * endpoint have have received a PATH-FINGERPRINT message and it has
-	 * determined that it is worth getting a copy of the file.
+	 * After a WRITE-FILE message indicating the start of a file transfer,
+	 * a series of MORE-DATA requests are sent, containing file contents.
+	 * Finally an END-OF-DATA request is sent. MORE-DATA has a response of
+	 * OK or NOT_OK per message.
 	 */
-	public void sendMeFile(String path);
+	public static final byte MORE_DATA = 7;
 
 	/**
-	 * An endpoint is instructing the other end point to write a file to disk.
-	 * This could be a result of a SEND-ME-FILE request or because a local file
-	 * change was detected that the endpoint is sure needs to be replicated.
+	 * See also MORE-DATA above. Finally an END-OF-DATA request is sent.
+	 * END-OF-DATA has a response of OK or NOT_OK. In both cases the file
+	 * should be closed off.
 	 */
-	public void writeFile(String path, int mode, File contents);
+	public static final byte END_OF_DATA = 8;
 
 	/**
-	 * An endpoint is instructing the other end point to create a new empty
-	 * directory (if it does not already exist).
+	 * Tell other end to delete the specified file. OK or NOT-OK sent in response.
 	 */
-	public void createDirectory(String path, int mode);
+	public static final byte PATH_DELETED = 9;
+
+	/**
+	 * Tell other end to delete the specified file. OK or NOT-OK sent in
+	 * response.
+	 */
+	public static final byte CREATE_DIRECTORY = 10;
+
+	/**
+	 * The server can send this message to the client in its channel to cause
+	 * a message to be displayed on the screen.
+	 */
+	public static final byte ERROR_MESSAGE = 11;
+
+	/**
+	 * Response to a request indicating success.
+	 */
+	public static final byte OK = 12;
+	
+	/**
+	 * Response to a request indicating something went wrong.
+	 */
+	public static final byte NOT_OK = 13;
 }

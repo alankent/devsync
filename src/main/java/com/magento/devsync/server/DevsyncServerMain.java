@@ -4,7 +4,11 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+import com.magento.devsync.communications.Logger;
+
 public class DevsyncServerMain {
+	
+	public static Logger logger = new Logger("S");
 
 	public static void main(String[] args) throws IOException {
 		
@@ -24,12 +28,15 @@ public class DevsyncServerMain {
 
 		int portNumber = Integer.parseInt(port);
 		
-		System.out.println("Server listening on port " + portNumber);
+		logger.log("Server listening on port " + portNumber);
 		try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
 			while (true) {
 				Socket clientSocket = serverSocket.accept();
-				System.out.println("Accepted client connection request");
-				Server.start(clientSocket);
+				logger.log("Accepted client connection request");
+						
+				// Spawn a new thread per socket connection.
+				ServerConnection s = new ServerConnection(clientSocket, logger);
+				new Thread(s, "Server-Socket").start();
 			}
 		}
 	}
