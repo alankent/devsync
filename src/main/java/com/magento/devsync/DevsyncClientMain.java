@@ -1,4 +1,4 @@
-package com.magento.devsync.client;
+package com.magento.devsync;
 
 import java.io.File;
 import java.io.IOException;
@@ -8,13 +8,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import com.magento.devsync.client.ClientMaster;
+import com.magento.devsync.client.ClientSlave;
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.ChannelMultiplexer;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
-import com.magento.devsync.server.DevsyncServerMain;
 
 
 /**
@@ -27,26 +28,6 @@ public class DevsyncClientMain {
     private static Logger logger;
 
     public static void main(String[] args) {
-
-        // Kick off server to make debugging easier during development.
-        boolean debugging = true;
-        if (debugging) {
-            try {
-                new Thread(new Runnable() { 
-                    public void run() {
-                        //						System.setOut(System.err);
-                        try {
-                            DevsyncServerMain.main(new String[] {"12345"});
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }, "Server-Main-Program").start();
-                Thread.sleep(1);
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
-        }
 
         logger = new Logger("C");
 
@@ -86,7 +67,7 @@ public class DevsyncClientMain {
         }
     }
 
-    private static String getHost() {
+    public static String getHost() {
         String host = System.getenv("DEVSYNC_HOST");
         if (host == null || host.equals("")) {
             host = System.getProperty("devsync.host");
@@ -98,7 +79,7 @@ public class DevsyncClientMain {
         return host;
     }
 
-    private static int getPort() {
+    public static int getPort() {
         String port = System.getenv("DEVSYNC_PORT");
         if (port == null || port.equals("")) {
             port = System.getProperty("devsync.port");
@@ -113,7 +94,7 @@ public class DevsyncClientMain {
         }
     }
 
-    private static String getConfigFile() {
+    public static String getConfigFile() {
         String f = System.getenv("DEVSYNC_CONFIG");
         if (f != null && f.length() > 0) {
             return f;

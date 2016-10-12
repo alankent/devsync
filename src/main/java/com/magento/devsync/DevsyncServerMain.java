@@ -1,10 +1,11 @@
-package com.magento.devsync.server;
+package com.magento.devsync;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
 import com.magento.devsync.communications.Logger;
+import com.magento.devsync.server.ServerConnection;
 
 public class DevsyncServerMain {
 
