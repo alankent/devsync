@@ -65,25 +65,17 @@ public interface ProtocolSpec {
 
 	/**
 	 * Initiate writing a file, with a response of OK or NOT-OK. This will be
-	 * followed by a series of MORE-DATA messages (each with OK/NOT-OK) and
-	 * finally a END-OF-DATA message (with OK/NOT-OK).
+	 * followed by a series of MORE-DATA messages (each with OK/NOT-OK) if
+	 * the file is large, until an 'eof' header is set to true.
 	 */
 	public static final byte WRITE_FILE = 6;
 
 	/**
 	 * After a WRITE-FILE message indicating the start of a file transfer,
-	 * a series of MORE-DATA requests are sent, containing file contents.
-	 * Finally an END-OF-DATA request is sent. MORE-DATA has a response of
-	 * OK or NOT_OK per message.
+	 * a series of MORE-DATA requests are sent if the file was too large to
+	 * include in the original write file request.
 	 */
 	public static final byte MORE_DATA = 7;
-
-	/**
-	 * See also MORE-DATA above. Finally an END-OF-DATA request is sent.
-	 * END-OF-DATA has a response of OK or NOT_OK. In both cases the file
-	 * should be closed off.
-	 */
-	public static final byte END_OF_DATA = 8;
 
 	/**
 	 * Tell other end to delete the specified file. OK or NOT-OK sent in response.

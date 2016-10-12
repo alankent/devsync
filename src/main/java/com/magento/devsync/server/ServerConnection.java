@@ -6,6 +6,7 @@ import java.net.Socket;
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.ChannelMultiplexer;
 import com.magento.devsync.communications.Logger;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 /**
  * Each new client socket connection request creates a new server instance.
@@ -27,11 +28,13 @@ public class ServerConnection implements Runnable {
 		Channel fromClientChannel = new Channel(0, multiplexer);
 		new Thread(multiplexer, "Server-Multiplexer").start();
 		
-		master = new ServerMaster(toClientChannel, logger);
+		ModifiedFileHistory history = new ModifiedFileHistory();
+		
+		master = new ServerMaster(toClientChannel, logger, history);
 		
 		// Slave is a child thread, master is the current thread.
 		logger.log("Spawning slave thread");
-		slave = new ServerSlave(fromClientChannel, master, logger);
+		slave = new ServerSlave(fromClientChannel, master, logger, history);
 		new Thread(slave, "Server-Slave").start();
 	}
 

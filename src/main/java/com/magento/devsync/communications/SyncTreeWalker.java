@@ -30,7 +30,7 @@ public class SyncTreeWalker {
 		for (Mount m : config.mounts) {
 			for (SyncRule sr : m.once) {
 				if (sr.mode.equals("push") || sr.mode.equals("sync")) {
-					fileWalk(PathResolver.path(m, sr), sr.exclude);
+					fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
 				}
 			}
 		}
@@ -40,7 +40,7 @@ public class SyncTreeWalker {
 		for (Mount m : config.mounts) {
 			for (SyncRule sr : m.once) {
 				if (sr.mode.equals("pull") || sr.mode.equals("sync")) {
-					fileWalk(PathResolver.path(m, sr), sr.exclude);
+					fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
 				}
 			}
 		}
@@ -50,7 +50,7 @@ public class SyncTreeWalker {
 		if (exclude.contains(path)) {
 			return;
 		}
-		File f = pathResolver.localPath(path);
+		File f = pathResolver.clientPathToFile(path);
 		if (!f.exists()) {
 			logger.log("Filewalk: Path does not exist: " + path + " => " + f);
 			return;

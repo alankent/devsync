@@ -2,37 +2,35 @@ package com.magento.devsync.server;
 
 import java.io.IOException;
 
-import com.magento.devsync.client.ClientFileSync;
-import com.magento.devsync.client.ClientFileWatcher;
-import com.magento.devsync.client.ClientPathResolver;
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.Logger;
-import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.communications.PathResolver;
+import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.communications.SyncTreeWalker;
 import com.magento.devsync.config.YamlFile;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 public class ServerMaster implements Runnable {
 	
-	private Requestor master;
+	private Requestor requestor;
 	private YamlFile config;
 	private PathResolver pathResolver;
-	private ServerFileSync serverSync;
 	private ServerFileWatcher fileWatcher;
 	private Logger logger;
 	private boolean startServerFileSync = false;
 	private Object lock = new Object();
+	private ModifiedFileHistory modifiedFileHistory;
 	
-	public ServerMaster(Channel channel, Logger logger) {
+	public ServerMaster(Channel channel, Logger logger, ModifiedFileHistory modifiedFileHistory) {
 		this.logger = logger;
-		master = new Requestor(channel, logger);
+		this.modifiedFileHistory = modifiedFileHistory;
+		requestor = new Requestor(channel, logger);
 	}
 	
 	public void setConfig(YamlFile config, PathResolver pathResolver) {
 		this.config = config;
 		this.pathResolver = pathResolver;
-		serverSync = new ServerFileSync(master, config, pathResolver, logger);
-		fileWatcher = new ServerFileWatcher(config, logger);
+		fileWatcher = new ServerFileWatcher(config, pathResolver, requestor, logger, modifiedFileHistory);
 	}
 
 	@Override
@@ -51,12 +49,12 @@ public class ServerMaster implements Runnable {
 
 		// Starting server side file sync (server is master now).
 		logger.log("* Server syncing initial changes to server");
-		SyncTreeWalker walker = new SyncTreeWalker(master, config, pathResolver, logger);
+		SyncTreeWalker walker = new SyncTreeWalker(requestor, config, pathResolver, logger);
 		walker.serverToClientWalk();
 		
 		// Tell client server sync done, client now drives the next step.
 		try {
-			master.syncComplete();
+			requestor.syncComplete();
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.exit(1); // TODO: System.exit(1) used to exit after fault.

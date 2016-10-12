@@ -13,6 +13,7 @@ import com.magento.devsync.communications.ChannelMultiplexer;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.config.YamlFile;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 import com.magento.devsync.server.DevsyncServerMain;
 
 
@@ -68,9 +69,11 @@ public class DevsyncClientMain {
 				Channel fromServerChannel = new Channel(1, multiplexer);
 				new Thread(multiplexer, "Client-Multiplexer").start();
 				
-				ClientMaster master = new ClientMaster(toServerChannel, config, logger);
+				ModifiedFileHistory history = new ModifiedFileHistory();
+				
+				ClientMaster master = new ClientMaster(toServerChannel, config, logger, history);
 
-				ClientSlave slave = new ClientSlave(fromServerChannel, config, logger, master);
+				ClientSlave slave = new ClientSlave(fromServerChannel, config, logger, master, history);
 				new Thread(slave, "Client-Slave").start();
 
 				master.run();

@@ -4,4 +4,8 @@ mounts:
     once:
       - mode: sync
         path: blah.txt
-        
+    watch:
+      - mode: sync
+        path: .
+        exclude:
+          - exclude-me.txt

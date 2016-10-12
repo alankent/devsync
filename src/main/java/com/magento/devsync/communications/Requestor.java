@@ -115,32 +115,25 @@ public class Requestor {
 			msg.putByte(ProtocolSpec.WRITE_FILE);
 			msg.putString(path);
 			msg.putBoolean(canExecute);
-			channel.send(msg);
-			if (!receiveOkOrNotOk()) {
-				return false;
-			}
 			
-			byte[] buf = new byte[64 * 1024];
+			byte[] buf = new byte[1024 * 1024];
 			while (true) {
-				msg = new MessageWriter();
-				int bytesRead = in.read(buf, 0, buf.length);
-				if (bytesRead <= 0) {
-					msg.putByte(ProtocolSpec.END_OF_DATA);
-					log("SEND: END-OF-DATA");
-					channel.send(msg);
-					if (!receiveOkOrNotOk()) {
-						return false;
-					}
-					break;
-				}
-				log("SEND: MORE-DATA bytes=" + bytesRead);
-				msg.putByte(ProtocolSpec.MORE_DATA);
+				int bytesRead = readFill(in, buf);
+				boolean eof = bytesRead < buf.length;
+				logger.log("  write file eof=" + Boolean.toString(eof) + " bytes=" + bytesRead);
+				msg.putBoolean(eof);
 				msg.putInt(bytesRead);
-				msg.putBytes(buf, 0, bytesRead);
+				msg.putBytes(buf,  0,  bytesRead);
 				channel.send(msg);
 				if (!receiveOkOrNotOk()) {
 					return false;
 				}
+				if (eof) {
+					break;
+				}
+				log("SEND: MORE-DATA");
+				msg = new MessageWriter();
+				msg.putByte(ProtocolSpec.MORE_DATA);
 			}
 		} catch (Exception e) {
 			log("Problem reading " + contents);
@@ -148,13 +141,26 @@ public class Requestor {
 		}
 		return true;
 	}
+	
+	private static int readFill(FileInputStream input, byte[] buf) throws IOException {
+		int offset = 0;
+		int remaining = buf.length;
+		while (remaining > 0) {
+			int bytesRead = input.read(buf, offset, remaining);
+			if (bytesRead <= 0) {
+				return offset;
+			}
+			offset += bytesRead;
+			remaining -= bytesRead;
+		}
+		return offset;
+	}
 
-	public boolean createDirectory(String path, int mode) throws IOException {
-		log("SEND: Create directory: " + path + " " + mode);
+	public boolean createDirectory(String path) throws IOException {
+		log("SEND: Create directory: " + path);
 		MessageWriter msg = new MessageWriter();
 		msg.putByte(ProtocolSpec.CREATE_DIRECTORY);
 		msg.putString(path);
-		msg.putInt(mode);
 		channel.send(msg);
 		return receiveOkOrNotOk();
 	}

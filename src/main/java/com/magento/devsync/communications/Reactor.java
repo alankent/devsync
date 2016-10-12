@@ -7,13 +7,17 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
 import com.magento.devsync.client.ClientMaster;
 import com.magento.devsync.client.ClientPathResolver;
 import com.magento.devsync.config.YamlFile;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 import com.magento.devsync.server.ServerMaster;
 import com.magento.devsync.server.ServerPathResolver;
 
@@ -36,28 +40,31 @@ public class Reactor implements Runnable {
 	private FileChannel writeFileChannel;
 	private File writeFileName;
 	private boolean writeFileCanExecute;
+	private ModifiedFileHistory modifiedFileLog;
 	
 	/**
 	 * Constructor used by client main program. In particular, the configuration file is known. 
 	 */
-	public Reactor(Channel channel, ClientMaster client, YamlFile config, Logger logger) {
+	public Reactor(Channel channel, ClientMaster client, YamlFile config, Logger logger, ModifiedFileHistory modifiedFileLog) {
 		this.channel = channel;
 		this.client = client;
 		this.server = null;
 		this.config = config;
 		this.pathResolver = new ClientPathResolver();
 		this.logger = logger;
+		this.modifiedFileLog = modifiedFileLog;
 	}
 	
 	/**
 	 * Constructor used by the server. It needs to establish socket connection with client before
 	 * the configuration file is known (the config comes from the client).
 	 */
-	public Reactor(Channel channel, ServerMaster server, Logger logger) {
+	public Reactor(Channel channel, ServerMaster server, Logger logger, ModifiedFileHistory modifiedFileLog) {
 		this.channel = channel;
 		this.client = null;
 		this.server = server;
 		this.logger = logger;
+		this.modifiedFileLog = modifiedFileLog;
 	}
 	
 	/**
@@ -189,12 +196,13 @@ public class Reactor implements Runnable {
 					writeFileCanExecute = msg.getBoolean();
 					
 					try {
-						writeFileName = pathResolver.localPath(path);
+						modifiedFileLog.startingToWrite(path);
+						writeFileName = pathResolver.clientPathToFile(path);
 						logger.log("WriteFile, going to write to " + writeFileName);
 						writeFileOutputStream = new FileOutputStream(writeFileName, false);
 						writeFileChannel = writeFileOutputStream.getChannel();
 						logger.log("File opened for writing");
-						respondOk();
+						processWriteMessage(msg);
 					} catch (Exception e) {
 						respondNotOk(e);
 					}
@@ -202,41 +210,14 @@ public class Reactor implements Runnable {
 				}
 				
 				case ProtocolSpec.MORE_DATA: {
-					
-					int length = msg.getInt();
-					
-					try {
-						ByteBuffer copyBuf = msg.getBytes(length);
-						int bytesWritten = writeFileChannel.write(copyBuf);
-						if (bytesWritten != length) {
-							logger.log("READ " + length + " but WROTE " + bytesWritten);
-						} else {
-							logger.log("WRITE " + bytesWritten);
-						}
-						respondOk();
-					} catch (Exception e) {
-						respondNotOk(e);
-					}
-					//TODO: Don't want to write file if it was updated recently,
-					// or does file watching code worry about that?
+					processWriteMessage(msg);
 					break;
 				}
 				
-				case ProtocolSpec.END_OF_DATA: {
-					writeFileChannel.close();
-					writeFileOutputStream.close();
-					if (writeFileCanExecute) {
-						writeFileName.setExecutable(true);
-					}
-					respondOk();
-					break;
-				}
-
 				case ProtocolSpec.CREATE_DIRECTORY: {
 					log("REQU: create directory");
 					String path = msg.getString();
-					int mode = msg.getInt();
-					createDirectory(path, mode);
+					createDirectory(path);
 					break;
 				}
 
@@ -252,14 +233,60 @@ public class Reactor implements Runnable {
 			e.printStackTrace();
 		}
 	}
+	
+	private int writeAll(FileChannel writeFileChannel, ByteBuffer buf, int bufLen) throws IOException {
+		int remaining = bufLen;
+		int totalWritten = 0;
+		int basePosition = buf.position();
+		while (true) {
+			int bytesWritten = writeFileChannel.write(buf);
+			if (bytesWritten < 0) {
+				return totalWritten;
+			}
+			totalWritten += bytesWritten;
+			remaining -= bytesWritten;
+			if (remaining == 0) {
+				return totalWritten;
+			}
+			buf.position(basePosition + totalWritten);
+		}
+	}
+
+	private void processWriteMessage(MessageReader msg) throws IOException {
+		
+		boolean eof = msg.getBoolean();
+		int length = msg.getInt();
+		ByteBuffer copyBuf = msg.getBytes(length);
+		
+		try {
+			writeAll(writeFileChannel, copyBuf, length);
+			respondOk();
+		} catch (Exception e) {
+			respondNotOk(e);
+		}
+		
+		if (eof) {
+			closeWritingFile();
+		}
+
+	}
+	
+	private void closeWritingFile() throws IOException {
+		writeFileChannel.close();
+		writeFileOutputStream.close();
+		if (writeFileCanExecute) {
+			writeFileName.setExecutable(true);
+		}
+		modifiedFileLog.writingCompleted();
+	}
 
 	private void log(String message) {
 		logger.log(message);
 	}
 	
 	private boolean pathDeleted(String path) throws IOException {
-		File localPath = pathResolver.localPath(path);
-		if (localPath.isDirectory()) {
+		File localPath = pathResolver.clientPathToFile(path);
+		if (Files.isDirectory(localPath.toPath(), LinkOption.NOFOLLOW_LINKS)) {
 			
 			// Recursive delete directory.
 			Path directory = localPath.toPath();
@@ -278,15 +305,19 @@ public class Reactor implements Runnable {
 			});
 			
 		} else {
-			if (!localPath.delete()) {
-				System.err.println("Failed to delete file " + localPath);
+			try {
+				Files.delete(localPath.toPath());
+			} catch (NoSuchFileException e) {
+				// Ignore 'no such file' exceptions.
+				// In 'sync' mode both server and client might bounce
+				// delete message back to original source.
 			}
 		}
-		return false;
+		return true;
 	}
 	
 	private void pathFingerprint(final String path, final String remoteFingerprint) throws IOException {
-		File localPath = pathResolver.localPath(path);
+		File localPath = pathResolver.clientPathToFile(path);
 		logger.log(". fingerprint " + path + " => " + localPath);
 		if (localPath.exists()) {
 			if (localPath.isDirectory()) {
@@ -325,8 +356,8 @@ public class Reactor implements Runnable {
 		}
 	}
 	
-	private void createDirectory(String path, int mode) throws IOException {
-		File f = pathResolver.localPath(path);
+	private void createDirectory(String path) throws IOException {
+		File f = pathResolver.clientPathToFile(path);
 		if (f.isDirectory()) {
 			// Already exists as directory
 			respondOk();

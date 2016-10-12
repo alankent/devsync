@@ -1,27 +1,34 @@
 package com.magento.devsync.server;
 
+import com.magento.devsync.communications.FileSync;
 import com.magento.devsync.communications.Logger;
+import com.magento.devsync.communications.PathResolver;
+import com.magento.devsync.communications.Requestor;
+import com.magento.devsync.config.Mount;
+import com.magento.devsync.config.SyncRule;
 import com.magento.devsync.config.YamlFile;
+import com.magento.devsync.filewatcher.FileWatcher.Filter;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 public class ServerFileWatcher implements Runnable {
 
-	private YamlFile config;
-	private Logger logger;
+	private FileSync fileSync;
 	
-	public ServerFileWatcher(YamlFile config, Logger logger) {
-		this.config = config;
-		this.logger = logger;
+	public ServerFileWatcher(YamlFile config, PathResolver pathResolver, Requestor requestor, Logger logger, ModifiedFileHistory modifiedFileHistory) {
+		fileSync = new FileSync(config, pathResolver, requestor, new Filter() {
+			@Override
+			public String path(Mount mount, SyncRule syncRule) {
+				if (syncRule.mode.equals("pull") || syncRule.mode.equals("sync")) {
+					return PathResolver.joinPath(mount.local, syncRule.path);
+				}
+				return null;
+			}
+		}, logger, modifiedFileHistory);
 	}
-
+	
 	@Override
 	public void run() {
-		//TODO: Server file watcher class to be written
-		logger.log("Server file watching starting (fake!)");
-		try {
-			Thread.sleep(1000000);
-		} catch (InterruptedException e) {
-			// Ignore
-		}
+		fileSync.run();
 	}
 
 }

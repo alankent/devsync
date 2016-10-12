@@ -7,6 +7,7 @@ import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.communications.ProtocolSpec;
 import com.magento.devsync.config.YamlFile;
+import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 /**
  * This class drives the client conversation to the server process.
@@ -19,15 +20,17 @@ public class ClientMaster implements Runnable {
 	private ClientFileSync clientSync;
 	private ClientFileWatcher fileWatcher;
 	private Logger logger;
+	private ModifiedFileHistory modifiedFileHistory;
 	
-	public ClientMaster(Channel channel, YamlFile config, Logger logger) {
+	public ClientMaster(Channel channel, YamlFile config, Logger logger, ModifiedFileHistory modifiedFileHistory) {
 		
 		this.config = config;
 		this.logger = logger;
+		this.modifiedFileHistory = modifiedFileHistory;
 		requestor = new Requestor(channel, logger);
 		clientPathResolver = new ClientPathResolver();
 		clientSync = new ClientFileSync(requestor, config, clientPathResolver, logger);
-		fileWatcher = new ClientFileWatcher();
+		fileWatcher = new ClientFileWatcher(config, clientPathResolver, requestor, logger, modifiedFileHistory);
 	}
 
 	/**

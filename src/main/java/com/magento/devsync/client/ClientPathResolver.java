@@ -20,7 +20,7 @@ public class ClientPathResolver extends PathResolver {
 	}
 
 	@Override
-	public File localPath(String abstractPath) {
+	public File clientPathToFile(String abstractPath) {
 		String p = abstractPath;
 		if (p.length() > 0 && p.charAt(0) == '~') {
 			p = homeDirectory + p.substring(1);
