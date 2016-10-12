@@ -18,42 +18,42 @@ mounts:
     remote: /src
     
     once:
-	  # Bring the vendor directory back locally, on startup.
-	  # PHP Storm wants these files for debugging purposes.
-	  # This directory is big, so don't slow down file watching with this
-	  # directory. Just restart the client after running composer install
-	  # if you want to get a local copy of any additional packages loaded.
-	  - mode: pull
-	    path: vendor/
+          # Bring the vendor directory back locally, on startup.
+          # PHP Storm wants these files for debugging purposes.
+          # This directory is big, so don't slow down file watching with this
+          # directory. Just restart the client after running composer install
+          # if you want to get a local copy of any additional packages loaded.
+          - mode: pull
+            path: vendor/
 
-	# Sync on start up, then watch for ongoing updates. 
-	# For example, the 'vendor' directory is normally created inside the
-	# container/VM and updated using 'composer install'. However, PHP Storm
-	# really wants to see those files for debugging purposes. They don't change
-	# very often, but there are a lot of them. So do it once at startup, and
-	# simply restart the client if new packages are installed to trigger a
-	# fresh download of the files. 
-	watch:
-	  - mode: push
-	    path: .
-	    exclude: 
-	      - Vagrantfile     # No need to copy Vagrantfile into VM
-	      - .vagrant/       # Do not copy images
-	  	  - .git/           # Do not copy GIT repo
-     	  - .gitignore      # Do not copy Git support file
-		  - .gitattributes  # Do not copy Git support file
-		  - var/            # Do not copy Magento temp files
-		  - pub/media/      # Don't wipe uploaded media files 
-		  - pub/static/     # Don't wipe generated assets 
-		  - vendor/         # For speed, don't watch this directory
-		  - .idea/          # PHP Storm project files
-		  - app/etc/env.php # Don't overwrite DB settings
-		  - .magento        # Used by Magento Cloud
+        # Sync on start up, then watch for ongoing updates. 
+        # For example, the 'vendor' directory is normally created inside the
+        # container/VM and updated using 'composer install'. However, PHP Storm
+        # really wants to see those files for debugging purposes. They don't change
+        # very often, but there are a lot of them. So do it once at startup, and
+        # simply restart the client if new packages are installed to trigger a
+        # fresh download of the files. 
+        watch:
+          - mode: push
+            path: .
+            exclude: 
+              - Vagrantfile     # No need to copy Vagrantfile into VM
+              - .vagrant/       # Do not copy images
+              - .git/           # Do not copy GIT repo
+              - .gitignore      # Do not copy Git support file
+              - .gitattributes  # Do not copy Git support file
+              - var/            # Do not copy Magento temp files
+              - pub/media/      # Don't wipe uploaded media files 
+              - pub/static/     # Don't wipe generated assets 
+              - vendor/         # For speed, don't watch this directory
+              - .idea/          # PHP Storm project files
+              - app/etc/env.php # Don't overwrite DB settings
+              - .magento        # Used by Magento Cloud
 		  
       # Magento creates PHP code in var/generated, which is useful to
       # bring back locally so PHP Storm can use them during debugging.
       # Note the 'exclude' above for 'var' is important to avoid a cycle
       # between pushing and pulling changes in the 'var' directory.
-	  - mode: pull
-	    path: var/generated/  # Oh, but we do want generated code!
-	    
+          - mode: pull
+            path: var/generated/  # Oh, but we do want generated code
+  

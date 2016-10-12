@@ -12,23 +12,23 @@ import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 public class ServerFileWatcher implements Runnable {
 
-	private FileSync fileSync;
-	
-	public ServerFileWatcher(YamlFile config, PathResolver pathResolver, Requestor requestor, Logger logger, ModifiedFileHistory modifiedFileHistory) {
-		fileSync = new FileSync(config, pathResolver, requestor, new Filter() {
-			@Override
-			public String path(Mount mount, SyncRule syncRule) {
-				if (syncRule.mode.equals("pull") || syncRule.mode.equals("sync")) {
-					return PathResolver.joinPath(mount.local, syncRule.path);
-				}
-				return null;
-			}
-		}, logger, modifiedFileHistory);
-	}
-	
-	@Override
-	public void run() {
-		fileSync.run();
-	}
+    private FileSync fileSync;
+
+    public ServerFileWatcher(YamlFile config, PathResolver pathResolver, Requestor requestor, Logger logger, ModifiedFileHistory modifiedFileHistory) {
+        fileSync = new FileSync(config, pathResolver, requestor, new Filter() {
+            @Override
+            public String path(Mount mount, SyncRule syncRule) {
+                if (syncRule.mode.equals("pull") || syncRule.mode.equals("sync")) {
+                    return PathResolver.joinPath(mount.local, syncRule.path);
+                }
+                return null;
+            }
+        }, logger, modifiedFileHistory);
+    }
+
+    @Override
+    public void run() {
+        fileSync.run();
+    }
 
 }

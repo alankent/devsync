@@ -14,70 +14,70 @@ import com.magento.devsync.filewatcher.ModifiedFileHistory;
  */
 public class ClientMaster implements Runnable {
 
-	private Requestor requestor;
-	private YamlFile config;
-	private ClientPathResolver clientPathResolver;
-	private ClientFileSync clientSync;
-	private ClientFileWatcher fileWatcher;
-	private Logger logger;
-	private ModifiedFileHistory modifiedFileHistory;
-	
-	public ClientMaster(Channel channel, YamlFile config, Logger logger, ModifiedFileHistory modifiedFileHistory) {
-		
-		this.config = config;
-		this.logger = logger;
-		this.modifiedFileHistory = modifiedFileHistory;
-		requestor = new Requestor(channel, logger);
-		clientPathResolver = new ClientPathResolver();
-		clientSync = new ClientFileSync(requestor, config, clientPathResolver, logger);
-		fileWatcher = new ClientFileWatcher(config, clientPathResolver, requestor, logger, modifiedFileHistory);
-	}
+    private Requestor requestor;
+    private YamlFile config;
+    private ClientPathResolver clientPathResolver;
+    private ClientFileSync clientSync;
+    private ClientFileWatcher fileWatcher;
+    private Logger logger;
+    private ModifiedFileHistory modifiedFileHistory;
 
-	/**
-	 * Main execution of client - listens for requests from the server
-	 * which can come at any time, plus goes through the phases of file
-	 * syncing.
-	 */
-	public void run() {
-		
-		// Send the protocol version (which will cause server to exit if its wrong).
-		logger.log("Checking protocol compatibility");
-		try {
-			if (!requestor.checkProtocolVersion(ProtocolSpec.PROTOCOL_VERSION)) {
-				System.out.println("Incompatible version of client and server code");
-				System.exit(1);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.exit(1); // TODO: System.exit(1) used to exit after fault.
-		}
-		
-		// Send configuration settings to the server.
-		logger.log("Setting configuration");
-		try {
-			if (!requestor.setConfig(config)) {
-				System.out.println("Failed to configure server. Aborting");
-				System.exit(1);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.exit(1); // TODO: System.exit(1) used to exit after fault.
-		}
-		
-		// Perform the synchronization phase (client -> server and server -> client).
-		// Returns only when both directions of initial file sync are complete.
-		logger.log("Spawning initial file system sync");
-		clientSync.run();
-		
-		// Watch file system and send to server.
-		logger.log("Listening for requests for server");
-		fileWatcher.run();
-	}
+    public ClientMaster(Channel channel, YamlFile config, Logger logger, ModifiedFileHistory modifiedFileHistory) {
 
-	/**
-	 * Called when server sends a message saying it has finished its phase of file syncing.
-	 */
-	public void syncComplete() {
-		clientSync.syncComplete();
-	}
+        this.config = config;
+        this.logger = logger;
+        this.modifiedFileHistory = modifiedFileHistory;
+        requestor = new Requestor(channel, logger);
+        clientPathResolver = new ClientPathResolver();
+        clientSync = new ClientFileSync(requestor, config, clientPathResolver, logger);
+        fileWatcher = new ClientFileWatcher(config, clientPathResolver, requestor, logger, modifiedFileHistory);
+    }
+
+    /**
+     * Main execution of client - listens for requests from the server
+     * which can come at any time, plus goes through the phases of file
+     * syncing.
+     */
+    public void run() {
+
+        // Send the protocol version (which will cause server to exit if its wrong).
+        logger.log("Checking protocol compatibility");
+        try {
+            if (!requestor.checkProtocolVersion(ProtocolSpec.PROTOCOL_VERSION)) {
+                System.out.println("Incompatible version of client and server code");
+                System.exit(1);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1); // TODO: System.exit(1) used to exit after fault.
+        }
+
+        // Send configuration settings to the server.
+        logger.log("Setting configuration");
+        try {
+            if (!requestor.setConfig(config)) {
+                System.out.println("Failed to configure server. Aborting");
+                System.exit(1);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1); // TODO: System.exit(1) used to exit after fault.
+        }
+
+        // Perform the synchronization phase (client -> server and server -> client).
+        // Returns only when both directions of initial file sync are complete.
+        logger.log("Spawning initial file system sync");
+        clientSync.run();
+
+        // Watch file system and send to server.
+        logger.log("Listening for requests for server");
+        fileWatcher.run();
+    }
+
+    /**
+     * Called when server sends a message saying it has finished its phase of file syncing.
+     */
+    public void syncComplete() {
+        clientSync.syncComplete();
+    }
 }

@@ -17,29 +17,29 @@ import com.magento.devsync.filewatcher.ModifiedFileHistory;
  */
 public class ServerConnection implements Runnable {
 
-	private ServerMaster master;
-	private ServerSlave slave;
-	
-	public ServerConnection(Socket socket, Logger logger) throws IOException {
-		logger.log("SERVER CREATED");
-		
-		ChannelMultiplexer multiplexer = new ChannelMultiplexer(socket, logger);
-		Channel toClientChannel = new Channel(1, multiplexer);
-		Channel fromClientChannel = new Channel(0, multiplexer);
-		new Thread(multiplexer, "Server-Multiplexer").start();
-		
-		ModifiedFileHistory history = new ModifiedFileHistory();
-		
-		master = new ServerMaster(toClientChannel, logger, history);
-		
-		// Slave is a child thread, master is the current thread.
-		logger.log("Spawning slave thread");
-		slave = new ServerSlave(fromClientChannel, master, logger, history);
-		new Thread(slave, "Server-Slave").start();
-	}
+    private ServerMaster master;
+    private ServerSlave slave;
 
-	@Override
-	public void run() {
-		master.run();
-	}
+    public ServerConnection(Socket socket, Logger logger) throws IOException {
+        logger.log("SERVER CREATED");
+
+        ChannelMultiplexer multiplexer = new ChannelMultiplexer(socket, logger);
+        Channel toClientChannel = new Channel(1, multiplexer);
+        Channel fromClientChannel = new Channel(0, multiplexer);
+        new Thread(multiplexer, "Server-Multiplexer").start();
+
+        ModifiedFileHistory history = new ModifiedFileHistory();
+
+        master = new ServerMaster(toClientChannel, logger, history);
+
+        // Slave is a child thread, master is the current thread.
+        logger.log("Spawning slave thread");
+        slave = new ServerSlave(fromClientChannel, master, logger, history);
+        new Thread(slave, "Server-Slave").start();
+    }
+
+    @Override
+    public void run() {
+        master.run();
+    }
 }

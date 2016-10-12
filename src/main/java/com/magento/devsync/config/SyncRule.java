@@ -6,13 +6,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class SyncRule {
 
-	@JsonProperty
-	public String mode; // push,pull,sync
-	
-	@JsonProperty
-	public String path;
-	
-	@JsonProperty
-	public List<String> exclude;
-	
+    @JsonProperty
+    public String mode; // push,pull,sync
+
+    @JsonProperty
+    public String path;
+
+    @JsonProperty
+    public List<String> exclude;
+
 }
