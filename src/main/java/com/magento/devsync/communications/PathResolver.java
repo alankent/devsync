@@ -3,14 +3,10 @@ package com.magento.devsync.communications;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 
 import javax.xml.bind.DatatypeConverter;
-
-import com.magento.devsync.config.Mount;
-import com.magento.devsync.config.SyncRule;
 
 public abstract class PathResolver {
 

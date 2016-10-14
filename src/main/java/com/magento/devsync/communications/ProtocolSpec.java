@@ -1,12 +1,5 @@
 package com.magento.devsync.communications;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-
-import com.magento.devsync.config.Mount;
-import com.magento.devsync.config.YamlFile;
-
 public interface ProtocolSpec {
 
     public static final int PROTOCOL_VERSION = 1;
@@ -103,4 +96,9 @@ public interface ProtocolSpec {
      * Response to a request indicating something went wrong.
      */
     public static final byte NOT_OK = 13;
+
+    /**
+     * Set by client
+     */
+    public static final byte INITIALIZE_PROJECT = 14;
 }

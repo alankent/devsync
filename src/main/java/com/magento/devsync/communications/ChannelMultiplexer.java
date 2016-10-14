@@ -19,15 +19,13 @@ public class ChannelMultiplexer implements Runnable {
     private Socket socket;
     private InputStream input;
     private OutputStream output;
-    private Logger logger;
     private Map<Integer,Channel> channels = new HashMap<>();
     private Object writeLock = new Object();
     private Object readLock = new Object();
 
-    public ChannelMultiplexer(Socket socket, Logger logger) throws IOException {
+    public ChannelMultiplexer(Socket socket) throws IOException {
         this.input = socket.getInputStream();
         this.output = socket.getOutputStream();
-        this.logger = logger;
     }
 
     public void register(int channelNumber, Channel channel) {
@@ -39,6 +37,9 @@ public class ChannelMultiplexer implements Runnable {
      * queued - it is done immediately.
      */
     public void send(int channelNumber, MessageWriter msg) throws IOException {
+        if (output == null) {
+            throw new RuntimeException("Cannot write to closed socket.");
+        }
         byte[] payload = msg.toByteArray();
         ByteBuffer lenBuf = ByteBuffer.allocate(1 + Integer.BYTES);
         lenBuf.put((byte)channelNumber);
@@ -71,9 +72,14 @@ public class ChannelMultiplexer implements Runnable {
         }
 
         // Clean up resources.
+        closeEverything();
+    }
+    
+    private void closeEverything() {
         synchronized (writeLock) {
             try {
                 output.close();
+                output = null;
             } catch (IOException e) {
                 // Ignore any problems closing the sockets.
             }
@@ -84,10 +90,15 @@ public class ChannelMultiplexer implements Runnable {
             // Ignore any problems closing the sockets.
         }
         try {
-            socket.close();
+            if (socket != null) {
+                socket.close();
+            }
         } catch (IOException e) {
             // Ignore any problems closing the sockets.
         }
+        output = null;
+        input = null;
+        socket = null;
     }
 
     /**
@@ -126,6 +137,9 @@ public class ChannelMultiplexer implements Runnable {
      * @param length The number of bytes to read, guaranteed.
      */
     private boolean readBytes(ByteBuffer bb, int length) {
+        if (input == null) {
+            return false;
+        }
         try {
             bb.clear();
             int remaining = length;
@@ -139,7 +153,8 @@ public class ChannelMultiplexer implements Runnable {
                 bb.position(bb.position() + actual);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read from socket", e);
+            closeEverything();
+            return false;
         }
         return true;
     }

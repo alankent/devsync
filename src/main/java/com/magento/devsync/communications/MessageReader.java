@@ -43,4 +43,18 @@ public class MessageReader {
     public long getLong() {
         return payload.getLong();
     }
+
+    public void throwIfMore() {
+        if (payload.remaining() > 0) {
+            throw new RuntimeException("Undecoded content remaining in message buffer.");
+        }
+    }
+
+    public void dump() {
+        System.out.println("Message dump: position=" + payload.position());
+        for (int i = 0; i < payload.limit(); i++) {
+            System.out.print(" " + String.format("%02X", payload.get(i) & 0xff));
+        }
+        System.out.println();
+    }
 }

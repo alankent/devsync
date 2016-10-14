@@ -21,7 +21,7 @@ public class Requestor {
     }
 
     public boolean checkProtocolVersion(int version) throws IOException {
-        log("SEND: Check protocol version");
+        logger.debugVerbose("SEND: Check protocol version");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.CHECK_PROTOCOL_VERSION);
         msg.putInt(version);
@@ -30,7 +30,7 @@ public class Requestor {
     }
 
     public boolean setConfig(YamlFile config) throws IOException {
-        log("SEND: Send configuration file to server");
+        logger.debugVerbose("SEND: Send configuration file to server");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.SET_CONFIG);
         msg.putString(config.contents);
@@ -39,7 +39,7 @@ public class Requestor {
     }
 
     public boolean errorMessage(String message) throws IOException {
-        log("SEND: Error: " + message);
+        logger.debugVerbose("SEND: Error: " + message);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.ERROR_MESSAGE);
         msg.putString(message);
@@ -47,24 +47,33 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
+    public boolean initializeProject() throws IOException {
+        logger.debugVerbose("SEND: Initialize project");
+        MessageWriter msg = new MessageWriter();
+        msg.putByte(ProtocolSpec.INITIALIZE_PROJECT);
+        channel.send(msg);
+        return receiveOkOrNotOk();
+    }
+
     public boolean initialSync() throws IOException {
-        log("SEND: Trigger server initial sync");
+        logger.debugVerbose("SEND: Trigger server initial sync");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.START_SERVER_SYNC);
         channel.send(msg);
         return receiveOkOrNotOk();
     }
 
-    public boolean syncComplete() throws IOException {
-        log("SEND: Server sync complete");
+    public boolean syncComplete(int syncFileCount) throws IOException {
+        logger.debugVerbose("SEND: Server sync complete");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.SERVER_SYNC_COMPLETE);
+        msg.putInt(syncFileCount);
         channel.send(msg);
         return receiveOkOrNotOk();
     }
 
     public boolean pathFingerprint(String path, boolean canExecute, File contents, String fingerprint) throws IOException {
-        log("SEND: Fingerprint: " + path + " " + fingerprint);
+        logger.debugVerbose("SEND: Fingerprint: " + path + " " + fingerprint);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.PATH_FINGERPRINT);
         msg.putString(path);
@@ -73,28 +82,26 @@ public class Requestor {
 
         MessageReader resp = channel.receive();
         switch (resp.getByte()) {
-        case ProtocolSpec.SEND_ME_FILE: {
-            log("RECV: SEND_ME_FILE: Write file to disk: " + path + " " + (canExecute ? "exe" : "plain"));
+        case ProtocolSpec.SEND_ME_FILE:
+            logger.debugVerbose("RECV: SEND_ME_FILE: Write file to disk: " + path + " " + (canExecute ? "exe" : "plain"));
             return writeFile(path, canExecute, contents);
-        }
-        case ProtocolSpec.OK: {
-            log("RECV: OK");
+        
+        case ProtocolSpec.OK: 
+            logger.debugVerbose("RECV: OK");
             return true;
-        }
-        case ProtocolSpec.NOT_OK: {
-            log("RECV: NOT-OK");
+        
+        case ProtocolSpec.NOT_OK: 
+            logger.debugVerbose("RECV: NOT-OK");
             return false;
-        }
-        default: {
-            log("RECV: <unexpected-response>");
+        
+        default: 
+            logger.debugVerbose("RECV: <unexpected-response>");
             throw new RuntimeException("Protocol error");
         }
-        }
-        //		return false;
     }
 
     public boolean pathDeleted(String path) throws IOException {
-        log("SEND: Delete: " + path);
+        logger.debugVerbose("SEND: Delete: " + path);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.PATH_DELETED);
         msg.putString(path);
@@ -108,7 +115,7 @@ public class Requestor {
      */
     public boolean writeFile(String path, boolean canExecute, File contents) {
 
-        log("SEND: WRITE_FILE: Write file to disk: " + path + " " + (canExecute ? "exe" : "plain"));
+        logger.debugVerbose("SEND: WRITE_FILE: Write file to disk: " + path + " " + (canExecute ? "exe" : "plain"));
         try (FileInputStream in = new FileInputStream(contents)) {
 
             MessageWriter msg = new MessageWriter();
@@ -120,7 +127,7 @@ public class Requestor {
             while (true) {
                 int bytesRead = readFill(in, buf);
                 boolean eof = bytesRead < buf.length;
-                logger.log("  write file eof=" + Boolean.toString(eof) + " bytes=" + bytesRead);
+                logger.debugVerbose("  write file eof=" + Boolean.toString(eof) + " bytes=" + bytesRead);
                 msg.putBoolean(eof);
                 msg.putInt(bytesRead);
                 msg.putBytes(buf,  0,  bytesRead);
@@ -131,12 +138,12 @@ public class Requestor {
                 if (eof) {
                     break;
                 }
-                log("SEND: MORE-DATA");
+                logger.debugVerbose("SEND: MORE-DATA");
                 msg = new MessageWriter();
                 msg.putByte(ProtocolSpec.MORE_DATA);
             }
         } catch (Exception e) {
-            log("Problem reading " + contents);
+            logger.debugVerbose("Problem reading " + contents);
             return false;
         }
         return true;
@@ -157,7 +164,7 @@ public class Requestor {
     }
 
     public boolean createDirectory(String path) throws IOException {
-        log("SEND: Create directory: " + path);
+        logger.debugVerbose("SEND: Create directory: " + path);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.CREATE_DIRECTORY);
         msg.putString(path);
@@ -169,19 +176,15 @@ public class Requestor {
         MessageReader resp = channel.receive();
         int cmd = resp.getByte();
         if (cmd == ProtocolSpec.OK) {
-            log("RECV: OK");
+            logger.debugVerbose("RECV: OK");
             return true;
         }
         if (cmd == ProtocolSpec.NOT_OK) {
             String errorMessage = resp.getString();
-            log("RECV: NOT-OK: " + errorMessage);
+            logger.debugVerbose("RECV: NOT-OK: " + errorMessage);
             System.err.println(errorMessage);
             return false;
         }
         throw new RuntimeException("Protocol error!");
-    }
-
-    private void log(String message) {
-        logger.log(message);
     }
 }

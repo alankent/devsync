@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
-import java.nio.file.Paths;
 
 import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.filewatcher.FileWatcher;
@@ -33,7 +32,7 @@ public class FileSync implements Runnable {
     public void run() {
         FileWatcher watcher;
         try {
-            watcher = new FileWatcher(config, pathResolver, new FileSyncListener(), filter, logger);
+            watcher = new FileWatcher(config, pathResolver, new FileSyncListener(), filter, modifiedFileHistory, logger);
 
             watcher.run();
 
@@ -48,6 +47,7 @@ public class FileSync implements Runnable {
         @Override
         public void fileDeleted(String path) {
             try {
+                logger.infoVerbose("Removing: " + path);
                 requestor.pathDeleted(path);
             } catch (IOException e) {
                 // TODO Auto-generated catch block
@@ -65,8 +65,10 @@ public class FileSync implements Runnable {
                     // If we wrote this file recently, the file system modified trigger
                     // might have been ourselves. So do a 'write if modified' sequence
                     // instead of a 'definitely write this file' sequence.
+                    logger.infoVerbose("Write-if-changed: " + f);
                     requestor.pathFingerprint(path, f.canExecute(), f, PathResolver.fingerprint(f));
                 } else {
+                    logger.infoVerbose("Writing: " + f);
                     requestor.writeFile(path, f.canExecute(), f);
                 }
             } catch (IOException e) {
@@ -78,6 +80,7 @@ public class FileSync implements Runnable {
         @Override
         public void directoryDeleted(String path) {
             try {
+                logger.infoVerbose("Removing: " + path);
                 requestor.pathDeleted(path);
             } catch (IOException e) {
                 // TODO Auto-generated catch block
@@ -88,6 +91,7 @@ public class FileSync implements Runnable {
         @Override
         public void directoryCreated(String path) {
             try {
+                logger.infoVerbose("Creating: " + path);
                 requestor.createDirectory(path);
 
                 // A directory rename comes through as delete and create,

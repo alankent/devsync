@@ -32,17 +32,18 @@ public class ClientFileSync implements Runnable {
     public void run() {
 
         // Step one, do a client side sync files to server.
-        logger.log("* Starting client->server sync");
+        logger.infoVerbose("* Starting client->server sync");
 
         SyncTreeWalker walker = new SyncTreeWalker(requestor, config, pathResolver, logger);
         walker.clientToServerWalk();
+        logger.infoVerbose("  Scanned " + walker.getSyncFileCount() + " local files.");
 
         // Step two, tell server it can start its sync now
-        logger.log("* Starting server->client sync");
+        logger.infoVerbose("* Starting server->client sync");
         try {
             requestor.initialSync();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.warn(e);
             System.exit(1); // TODO: System.exit(1) used to exit after fault.
         }
 
@@ -62,10 +63,11 @@ public class ClientFileSync implements Runnable {
     /**
      * Signal the client thread to go into file system watching mode.
      */
-    public void syncComplete() {
+    public void syncComplete(int fileSyncCount) {
         synchronized (lock) {
             serverSyncComplete = true;
             lock.notifyAll();
+            logger.infoVerbose("  Scanned " + fileSyncCount + " remote files.");
         }
     }
 }

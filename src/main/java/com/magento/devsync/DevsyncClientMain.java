@@ -1,7 +1,6 @@
 package com.magento.devsync;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -9,11 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import com.magento.devsync.client.ClientMaster;
-import com.magento.devsync.client.ClientSlave;
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.ChannelMultiplexer;
 import com.magento.devsync.communications.Logger;
-import com.magento.devsync.communications.Requestor;
+import com.magento.devsync.communications.Reactor;
 import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
@@ -29,41 +27,76 @@ public class DevsyncClientMain {
 
     public static void main(String[] args) {
 
-        logger = new Logger("C");
+        boolean quietMode = false;
+        boolean debugMode = false;
+        boolean verboseMode = false;
+        boolean forceProjectInitialization = false;
+        
+        int arg = 0;
+        while (arg < args.length) {
+            if (args[arg].equals("--quiet")) {
+                quietMode = true;
+                arg++;
+            } else if (args[arg].equals("--debug")) {
+                debugMode = true;
+                arg++;
+            } else if (args[arg].equals("--verbose")) {
+                verboseMode = true;
+                arg++;
+            } else if (args[arg].equals("--init-project")) {
+                forceProjectInitialization = true;
+                arg++;
+            } else {
+                System.err.println("Unknown command line option '" + args[arg] + "'.");
+                System.exit(1);
+            }
+        }
+        
+        logger = new Logger("C", quietMode, debugMode, verboseMode);
 
         try {
-            logger.log("Devsync version " + VERSION + "\n");
-            byte[] encoded = Files.readAllBytes(Paths.get(getConfigFile()));
-            String yamlContents = new String(encoded, StandardCharsets.UTF_8);
-            YamlFile config = YamlFile.parseYaml(yamlContents);
+            logger.info("Devsync version " + VERSION + "\n");
 
-            logger.log("* Connecting to server\n");
+            logger.infoVerbose("* Connecting to server\n");
 
             String host = getHost();
             int portNum = getPort();
 
             try (Socket sock = new Socket(host, portNum)) {
-                logger.log("Connected to server.");
+                logger.info("Connected to server.");
 
-                ChannelMultiplexer multiplexer = new ChannelMultiplexer(sock, logger);
+                ChannelMultiplexer multiplexer = new ChannelMultiplexer(sock);
                 Channel toServerChannel = new Channel(0, multiplexer);
                 Channel fromServerChannel = new Channel(1, multiplexer);
                 new Thread(multiplexer, "Client-Multiplexer").start();
 
                 ModifiedFileHistory history = new ModifiedFileHistory();
 
-                ClientMaster master = new ClientMaster(toServerChannel, config, logger, history);
-
-                ClientSlave slave = new ClientSlave(fromServerChannel, config, logger, master, history);
+                // We are going to start communicating before loading config file,
+                // as we may download it from the server.
+                Reactor slave = new Reactor(fromServerChannel, logger, history);
                 new Thread(slave, "Client-Slave").start();
 
+                ClientMaster master = new ClientMaster(toServerChannel, logger, history);
+                master.preConfigHandshake(forceProjectInitialization);
+
+                // Load up configuration file.
+                byte[] encoded = Files.readAllBytes(Paths.get(getConfigFile()));
+                String yamlContents = new String(encoded, StandardCharsets.UTF_8);
+                YamlFile config = YamlFile.parseYaml(yamlContents);
+                master.setConfig(config);
+
+                slave.setClientMaster(master);
                 master.run();
 
+            } catch (ConnectException e) {
+                logger.warn("Failed to connect to server.");
+                logger.debug(e);
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.warn(e);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.warn(e);
         }
     }
 
@@ -72,7 +105,7 @@ public class DevsyncClientMain {
         if (host == null || host.equals("")) {
             host = System.getProperty("devsync.host");
             if (host == null || host.equals("")) {
-                logger.log("Environment variable DEVSYNC_HOST is not set.");
+                logger.warn("Environment variable DEVSYNC_HOST is not set.");
                 System.exit(1);
             }
         }
@@ -84,7 +117,8 @@ public class DevsyncClientMain {
         if (port == null || port.equals("")) {
             port = System.getProperty("devsync.port");
             if (port == null || port.equals("")) {
-                throw new RuntimeException("Environment variable DEVSYNC_PORT is not set.");
+                logger.warn("Environment variable DEVSYNC_PORT is not set.");
+                System.exit(1);
             }
         }
         try {

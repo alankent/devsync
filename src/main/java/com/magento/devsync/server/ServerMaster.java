@@ -1,5 +1,6 @@
 package com.magento.devsync.server;
 
+import java.io.File;
 import java.io.IOException;
 
 import com.magento.devsync.communications.Channel;
@@ -20,10 +21,12 @@ public class ServerMaster implements Runnable {
     private boolean startServerFileSync = false;
     private Object lock = new Object();
     private ModifiedFileHistory modifiedFileHistory;
+    private String templateDir;
 
-    public ServerMaster(Channel channel, Logger logger, ModifiedFileHistory modifiedFileHistory) {
+    public ServerMaster(Channel channel, Logger logger, ModifiedFileHistory modifiedFileHistory, String templateDir) {
         this.logger = logger;
         this.modifiedFileHistory = modifiedFileHistory;
+        this.templateDir = templateDir;
         requestor = new Requestor(channel, logger);
     }
 
@@ -48,20 +51,20 @@ public class ServerMaster implements Runnable {
         }
 
         // Starting server side file sync (server is master now).
-        logger.log("* Server syncing initial changes to server");
+        logger.infoVerbose("* Server syncing initial changes to server");
         SyncTreeWalker walker = new SyncTreeWalker(requestor, config, pathResolver, logger);
         walker.serverToClientWalk();
 
         // Tell client server sync done, client now drives the next step.
         try {
-            requestor.syncComplete();
+            requestor.syncComplete(walker.getSyncFileCount());
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1); // TODO: System.exit(1) used to exit after fault.
         }
 
         // Watch file system and send to server.
-        logger.log("Listening for requests on server to send to client");
+        logger.infoVerbose("Listening for requests on server to send to client");
         fileWatcher.run();
     }
 
@@ -75,6 +78,36 @@ public class ServerMaster implements Runnable {
         synchronized (lock) {
             startServerFileSync  = true;
             lock.notifyAll();
+        }
+    }
+    
+    public void initializeProject() {
+        if (templateDir == null) {
+            return;
+        }
+        fileWalk(".");
+    }
+    
+    private void fileWalk(String path) {
+        File f = new File(PathResolver.joinPath(templateDir, path));
+        if (!f.exists()) {
+            logger.info("Project initilaization template directory does not exist: " + templateDir);
+            return;
+        }
+        try {
+            if (f.isDirectory()) {
+                requestor.createDirectory(path);
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    fileWalk(path + "/" + child.getName());
+                }
+            } else {
+                boolean canExecute = f.canExecute();
+                requestor.writeFile(path, canExecute, f);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1); // TODO: System.exit(1) used to exit after fault.
         }
     }
 }

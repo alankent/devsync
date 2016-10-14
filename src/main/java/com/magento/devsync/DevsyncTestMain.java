@@ -22,7 +22,10 @@ public class DevsyncTestMain {
                     public void run() {
                         try {
                             DevsyncServerMain.main(new String[] {
-                                    Integer.toString(DevsyncClientMain.getPort())
+                                    "--port",
+                                    Integer.toString(DevsyncClientMain.getPort()),
+                                    "--template",
+                                    "foo/template"
                             });
                         } catch (IOException e) {
                             e.printStackTrace();

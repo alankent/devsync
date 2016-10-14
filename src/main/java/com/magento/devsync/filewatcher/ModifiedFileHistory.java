@@ -31,6 +31,7 @@ public class ModifiedFileHistory {
     }
 
     synchronized public boolean contains(String path) {
+        removeExpiredEntries();
         for (HashSet<String> timeSlice : history) {
             if (timeSlice.contains(path)) {
                 return true;
@@ -39,7 +40,7 @@ public class ModifiedFileHistory {
         return false;
     }
 
-    private long removeExpiredEntries() {
+    public void removeExpiredEntries() {
         long current = System.currentTimeMillis() / 1000;
         if (current > baseTime + EXPIRY_SECONDS) {
             // Long time ago, just wipe the history completely.
@@ -56,6 +57,5 @@ public class ModifiedFileHistory {
                 baseTime++;
             }
         }
-        return current;
     }
 }

@@ -2,6 +2,7 @@ package com.magento.devsync.communications;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import com.magento.devsync.config.Mount;
@@ -11,16 +12,17 @@ import com.magento.devsync.config.YamlFile;
 public class SyncTreeWalker {
 
     private Logger logger; 
-    private Requestor master;
+    private Requestor requestor;
     private YamlFile config;
     private PathResolver pathResolver;
+    private int syncFileCount = 0;
 
     public SyncTreeWalker(
-            Requestor master,
+            Requestor requestor,
             YamlFile config,
             PathResolver pathResolver,
             Logger logger) {
-        this.master = master;
+        this.requestor = requestor;
         this.config = config;
         this.pathResolver = pathResolver;
         this.logger = logger;
@@ -28,9 +30,11 @@ public class SyncTreeWalker {
 
     public void clientToServerWalk() {
         for (Mount m : config.mounts) {
-            for (SyncRule sr : m.once) {
-                if (sr.mode.equals("push") || sr.mode.equals("sync")) {
-                    fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
+            for (List<SyncRule> syncRules : Arrays.asList(m.once, m.watch)) {
+                for (SyncRule sr : syncRules) {
+                    if (sr.mode.equals("push") || sr.mode.equals("sync")) {
+                        fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
+                    }
                 }
             }
         }
@@ -38,9 +42,11 @@ public class SyncTreeWalker {
 
     public void serverToClientWalk() {
         for (Mount m : config.mounts) {
-            for (SyncRule sr : m.once) {
-                if (sr.mode.equals("pull") || sr.mode.equals("sync")) {
-                    fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
+            for (List<SyncRule> syncRules : Arrays.asList(m.once, m.watch)) {
+                for (SyncRule sr : syncRules) {
+                    if (sr.mode.equals("pull") || sr.mode.equals("sync")) {
+                        fileWalk(PathResolver.joinPath(m.local, sr.path), sr.exclude);
+                    }
                 }
             }
         }
@@ -52,23 +58,29 @@ public class SyncTreeWalker {
         }
         File f = pathResolver.clientPathToFile(path);
         if (!f.exists()) {
-            logger.log("Filewalk: Path does not exist: " + path + " => " + f);
+            logger.debugVerbose("Filewalk: Path does not exist: " + path + " => " + f);
             return;
         }
-        logger.log("FILEWALK: " + path + " => " + f);
-        String fingerprint = PathResolver.fingerprint(f);
+        logger.debugVerbose("FILEWALK: " + path + " => " + f);
         try {
-            boolean canExecute = f.canExecute();
-            master.pathFingerprint(path, canExecute, f, fingerprint);
             if (f.isDirectory()) {
+                requestor.createDirectory(path);
                 File[] files = f.listFiles();
                 for (File child : files) {
                     fileWalk(path + "/" + child.getName(), exclude);
                 }
+            } else {
+                String fingerprint = PathResolver.fingerprint(f);
+                boolean canExecute = f.canExecute();
+                requestor.pathFingerprint(path, canExecute, f, fingerprint);
+                syncFileCount++;
             }
         } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1); // TODO: System.exit(1) used to exit after fault.
+            logger.warn(e);
         }
+    }
+    
+    public int getSyncFileCount() {
+        return syncFileCount;
     }
 }

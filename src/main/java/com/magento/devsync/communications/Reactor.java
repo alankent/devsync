@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 
@@ -34,7 +33,6 @@ public class Reactor implements Runnable {
     private ClientMaster client;
     private PathResolver pathResolver;
     private boolean gracefulExit = false;
-    private YamlFile config;
     private Channel channel;
     private FileOutputStream writeFileOutputStream;
     private FileChannel writeFileChannel;
@@ -43,16 +41,21 @@ public class Reactor implements Runnable {
     private ModifiedFileHistory modifiedFileLog;
 
     /**
-     * Constructor used by client main program. In particular, the configuration file is known. 
+     * Constructor used by client main program.  
      */
-    public Reactor(Channel channel, ClientMaster client, YamlFile config, Logger logger, ModifiedFileHistory modifiedFileLog) {
+    public Reactor(Channel channel, Logger logger, ModifiedFileHistory modifiedFileLog) {
         this.channel = channel;
-        this.client = client;
         this.server = null;
-        this.config = config;
         this.pathResolver = new ClientPathResolver();
         this.logger = logger;
         this.modifiedFileLog = modifiedFileLog;
+    }
+
+    /**
+     * Second phase of client constructor, but only after the config file is known. 
+     */
+    public void setClientMaster(ClientMaster client) {
+        this.client = client;
     }
 
     /**
@@ -65,16 +68,6 @@ public class Reactor implements Runnable {
         this.server = server;
         this.logger = logger;
         this.modifiedFileLog = modifiedFileLog;
-    }
-
-    /**
-     * The path resolver for the server is not known until a message arrives
-     * with the required configuration to do resolution. So this cannot be done
-     * in constructor for the server case.
-     */
-    public void setConfig(YamlFile config) {
-        this.config = config;
-        this.pathResolver = new ServerPathResolver(config);
     }
 
     /**
@@ -91,9 +84,9 @@ public class Reactor implements Runnable {
             }
         } catch (Exception e) {
             if (gracefulExit) {
-                logger.log(e.getMessage());
+                logger.info(e);
             } else {
-                e.printStackTrace();
+                logger.warn(e);
             }
         }
     }
@@ -106,42 +99,55 @@ public class Reactor implements Runnable {
 
             switch (command) {
 
-            case ProtocolSpec.CHECK_PROTOCOL_VERSION: {
-                log("REQU: Check protocol");
+            case ProtocolSpec.CHECK_PROTOCOL_VERSION:
+                logger.debugVerbose("REQU: Check protocol");
+                if (client != null) {
+                    msg.dump();
+                    throw new RuntimeException("Client should never recevie procotol check request.");
+                }
                 int version = msg.getInt();
+                msg.throwIfMore();
                 if (version != ProtocolSpec.PROTOCOL_VERSION) {
-                    respondNotOk("Client and server are at different protocol versions.");
+                    respondNotOk("Client and server are at different protocol versions. (" + version + " vs " + ProtocolSpec.PROTOCOL_VERSION + ")");
                 } else {
                     respondOk();
                 }
                 break;
-            }
 
-            case ProtocolSpec.SET_CONFIG: {
+            case ProtocolSpec.INITIALIZE_PROJECT:
+                logger.debugVerbose("REQU: Initialize project");
+                msg.throwIfMore();
+                server.initializeProject();
+                respondOk();
+                break;
+
+            case ProtocolSpec.SET_CONFIG:
                 // Send the whole YAML config file, which is a little
                 // hacky (but easy to get going with).
-                log("REQU: set config");
+                logger.debugVerbose("REQU: set config");
                 try {
                     String yamlFile = msg.getString();
-                    setConfig(YamlFile.parseYaml(yamlFile));
+                    msg.throwIfMore();
+                    YamlFile config = YamlFile.parseYaml(yamlFile);
+                    this.pathResolver = new ServerPathResolver(config);
                     server.setConfig(config, pathResolver);
                     respondOk();
                 } catch (Exception e) {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.ERROR_MESSAGE: {
-                log("REQU: error");
+            case ProtocolSpec.ERROR_MESSAGE:
+                logger.debugVerbose("REQU: error");
                 String message = msg.getString();
-                log(message);
+                msg.throwIfMore();
+                logger.debugVerbose(message);
                 respondOk();
                 break;
-            }
 
-            case ProtocolSpec.START_SERVER_SYNC: {
-                log("REQU: initial sync request");
+            case ProtocolSpec.START_SERVER_SYNC:
+                logger.debugVerbose("REQU: initial sync request");
+                msg.throwIfMore();
                 try {
                     server.initialSync();
                     respondOk();
@@ -149,36 +155,37 @@ public class Reactor implements Runnable {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.SERVER_SYNC_COMPLETE: {
-                log("REQU: initial sync COMPLETE");
+            case ProtocolSpec.SERVER_SYNC_COMPLETE:
+                logger.debugVerbose("REQU: initial sync COMPLETE");
+                int fileSyncCount = msg.getInt();
+                msg.throwIfMore();
                 try {
-                    client.syncComplete();
+                    client.syncComplete(fileSyncCount);
                     respondOk();
                 } catch (Exception e) {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.PATH_FINGERPRINT: { 
-                log("REQU: fingerprint");
+            case ProtocolSpec.PATH_FINGERPRINT:
+                logger.debugVerbose("REQU: fingerprint");
                 try {
                     String path = msg.getString();
                     String fingerprint = msg.getString();
-                    log("fingerprint path=" + path + " fingerprint=" + fingerprint);
+                    msg.throwIfMore();
+                    logger.debugVerbose("fingerprint path=" + path + " fingerprint=" + fingerprint);
                     pathFingerprint(path, fingerprint);
                 } catch (Exception e) {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.PATH_DELETED: {
-                log("REQU: delete path");
+            case ProtocolSpec.PATH_DELETED:
+                logger.debugVerbose("REQU: delete path");
                 try {
                     String path = msg.getString();
+                    msg.throwIfMore();
                     if (pathDeleted(path)) {
                         respondOk();
                     } else {
@@ -188,44 +195,40 @@ public class Reactor implements Runnable {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.WRITE_FILE: {
-                log("REQU: write file");
+            case ProtocolSpec.WRITE_FILE:
+                logger.debugVerbose("REQU: write file");
                 String path = msg.getString();
                 writeFileCanExecute = msg.getBoolean();
 
                 try {
                     modifiedFileLog.startingToWrite(path);
                     writeFileName = pathResolver.clientPathToFile(path);
-                    logger.log("WriteFile, going to write to " + writeFileName);
+                    logger.debug("WriteFile, going to write to " + writeFileName);
                     writeFileOutputStream = new FileOutputStream(writeFileName, false);
                     writeFileChannel = writeFileOutputStream.getChannel();
-                    logger.log("File opened for writing");
+                    logger.debugVerbose("File opened for writing");
                     processWriteMessage(msg);
                 } catch (Exception e) {
                     respondNotOk(e);
                 }
                 break;
-            }
 
-            case ProtocolSpec.MORE_DATA: {
+            case ProtocolSpec.MORE_DATA:
                 processWriteMessage(msg);
                 break;
-            }
 
-            case ProtocolSpec.CREATE_DIRECTORY: {
-                log("REQU: create directory");
-                String path = msg.getString();
-                createDirectory(path);
+            case ProtocolSpec.CREATE_DIRECTORY:
+                logger.debugVerbose("REQU: create directory");
+                String dir = msg.getString();
+                msg.throwIfMore();
+                createDirectory(dir);
                 break;
-            }
 
-            default: {
-                log("RECV: UNKNOWN COMMAND! " + command);
+            default:
+                logger.debugVerbose("RECV: UNKNOWN COMMAND! " + command);
                 System.exit(1);
                 break;
-            }
             }
 
         } catch (Exception e) {
@@ -257,6 +260,7 @@ public class Reactor implements Runnable {
         boolean eof = msg.getBoolean();
         int length = msg.getInt();
         ByteBuffer copyBuf = msg.getBytes(length);
+        msg.throwIfMore();
 
         try {
             writeAll(writeFileChannel, copyBuf, length);
@@ -268,7 +272,6 @@ public class Reactor implements Runnable {
         if (eof) {
             closeWritingFile();
         }
-
     }
 
     private void closeWritingFile() throws IOException {
@@ -278,10 +281,6 @@ public class Reactor implements Runnable {
             writeFileName.setExecutable(true);
         }
         modifiedFileLog.writingCompleted();
-    }
-
-    private void log(String message) {
-        logger.log(message);
     }
 
     private boolean pathDeleted(String path) throws IOException {
@@ -318,7 +317,7 @@ public class Reactor implements Runnable {
 
     private void pathFingerprint(final String path, final String remoteFingerprint) throws IOException {
         File localPath = pathResolver.clientPathToFile(path);
-        logger.log(". fingerprint " + path + " => " + localPath);
+        logger.debugVerbose(". fingerprint " + path + " => " + localPath);
         if (localPath.exists()) {
             if (localPath.isDirectory()) {
                 if (server != null) {
@@ -336,7 +335,7 @@ public class Reactor implements Runnable {
             } else {
                 String localFingerprint = PathResolver.fingerprint(localPath);
                 if (localFingerprint.equals(remoteFingerprint)) {
-                    logger.log(". fingerprints match - do not copy " + path);
+                    logger.debugVerbose(". fingerprints match - do not copy " + path);
                     respondOk();
                     return;
                 }
@@ -344,9 +343,9 @@ public class Reactor implements Runnable {
         }
 
         // The file is different - please send us a copy!
-        logger.log("RESP: SEND-ME-FILE: " + path);
+        logger.debugVerbose("RESP: SEND-ME-FILE: " + path);
         try {
-            logger.log(". fingerprints don't match - REQUEST A COPY " + path);
+            logger.debugVerbose(". fingerprints don't match - REQUEST A COPY " + path);
             MessageWriter msg = new MessageWriter();
             msg.putByte(ProtocolSpec.SEND_ME_FILE);
             msg.putString(path);
@@ -375,14 +374,14 @@ public class Reactor implements Runnable {
     }
 
     private void respondOk() throws IOException {
-        logger.log("RESP: OK");
+        logger.debugVerbose("RESP: OK");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.OK);
         channel.send(msg);
     }
 
     private void respondNotOk(String message) throws IOException {
-        logger.log("RESP: NOT_OK: " + message);
+        logger.debugVerbose("RESP: NOT_OK: " + message);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.NOT_OK);
         msg.putString(message);
@@ -390,7 +389,7 @@ public class Reactor implements Runnable {
     }
 
     private void respondNotOk(Exception e) throws IOException {
-        logger.log("RESP: NOT_OK: (internal error) " + e.getMessage());
+        logger.debugVerbose("RESP: NOT_OK: (internal error) " + e.getMessage());
         e.printStackTrace();
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.NOT_OK);

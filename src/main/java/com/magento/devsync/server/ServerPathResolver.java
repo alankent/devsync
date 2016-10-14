@@ -1,7 +1,6 @@
 package com.magento.devsync.server;
 
 import java.io.File;
-import java.util.List;
 
 import com.magento.devsync.communications.PathResolver;
 import com.magento.devsync.config.Mount;

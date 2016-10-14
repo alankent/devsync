@@ -32,6 +32,7 @@ public class FileWatcher implements Runnable {
     private FileWatcherListener listener;
     private Filter filter;
     private Logger logger;
+    private ModifiedFileHistory history;
 
     public static interface Filter {
         /**
@@ -40,11 +41,12 @@ public class FileWatcher implements Runnable {
         String path(Mount mount, SyncRule syncRule);
     }
 
-    public FileWatcher(YamlFile config, PathResolver pathResolver, FileWatcherListener listener, Filter filter, Logger logger) throws IOException {
+    public FileWatcher(YamlFile config, PathResolver pathResolver, FileWatcherListener listener, Filter filter, ModifiedFileHistory history, Logger logger) throws IOException {
         this.config = config;
         this.pathResolver = pathResolver;
         this.listener = listener;
         this.filter = filter;
+        this.history = history;
         this.logger = logger;
 
         // Get the watch service.
@@ -63,13 +65,13 @@ public class FileWatcher implements Runnable {
 
                     // Work out the paths to ignore.
                     for (String exclude : sr.exclude) {
-                        logger.log("FileWatcher: excluding " + PathResolver.joinPath(clientPath, exclude));
+                        logger.debug("FileWatcher: excluding " + PathResolver.joinPath(clientPath, exclude));
                         ignorePaths.add(PathResolver.joinPath(clientPath, exclude));
                     }
 
                     // Register the watchers.
                     try {
-                        logger.log("FileWatcher: registering " + clientPath);
+                        logger.debug("FileWatcher: registering " + clientPath);
                         registerRecursive(clientPath);
                     } catch (IOException e) {
                         // TODO Auto-generated catch block
@@ -98,6 +100,10 @@ public class FileWatcher implements Runnable {
         }
 
         File f = pathResolver.clientPathToFile(clientPath);
+        if (!f.exists()) {
+            logger.infoVerbose("Warning: Asked to watch non-existing directory (ignoring) - " + clientPath);
+            return;
+        }
         WatchKey key = f.toPath().register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
         pathsByKey.put(key, clientPath);
 
@@ -122,31 +128,31 @@ public class FileWatcher implements Runnable {
             WatchKey key;
             try {
                 key = watchService.take();
-                logger.log("Got a watch key!");
-
+                logger.debugVerbose("Got a watch key!");
+                history.removeExpiredEntries();
             } catch (InterruptedException x) {
-                logger.log("Exiting watch loop due to interrupt");
+                logger.debugVerbose("Exiting watch loop due to interrupt");
                 return;
             }
 
             String clientPath = pathsByKey.get(key);
             if (clientPath == null) {
-                System.err.println("WatchKey not recognized!!");
+                logger.debugVerbose("WatchKey not recognized!!");
                 continue;
             }
-            logger.log("Triggered by " + clientPath);
+            logger.debugVerbose("Triggered by " + clientPath);
 
             for (WatchEvent<?> event: key.pollEvents()) {
                 WatchEvent.Kind<?> kind = event.kind();
 
                 // Oops, did we lose some events?
                 if (kind == StandardWatchEventKinds.OVERFLOW) {
-                    System.err.println("Warning - some events were lost"); // TODO
+                    logger.debugVerbose("Warning - some events were lost"); // TODO
                     continue;
                 }
 
                 // Context for directory entry event is the file name of entry
-                WatchEvent<Path> ev = (WatchEvent<Path>) event;
+                WatchEvent<Path> ev = cast(event);
                 Path name = ev.context();
                 String child = PathResolver.joinPath(clientPath, name.getFileName().toString());
 
@@ -198,5 +204,10 @@ public class FileWatcher implements Runnable {
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private WatchEvent<Path> cast(WatchEvent<?> event) {
+        return (WatchEvent<Path>) event;
     }
 }

@@ -6,6 +6,7 @@ import java.net.Socket;
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.ChannelMultiplexer;
 import com.magento.devsync.communications.Logger;
+import com.magento.devsync.communications.Reactor;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
 /**
@@ -18,23 +19,23 @@ import com.magento.devsync.filewatcher.ModifiedFileHistory;
 public class ServerConnection implements Runnable {
 
     private ServerMaster master;
-    private ServerSlave slave;
+    private Reactor slave;
 
-    public ServerConnection(Socket socket, Logger logger) throws IOException {
-        logger.log("SERVER CREATED");
+    public ServerConnection(Socket socket, Logger logger, String templateDir) throws IOException {
+        logger.debug("SERVER CREATED");
 
-        ChannelMultiplexer multiplexer = new ChannelMultiplexer(socket, logger);
+        ChannelMultiplexer multiplexer = new ChannelMultiplexer(socket);
         Channel toClientChannel = new Channel(1, multiplexer);
         Channel fromClientChannel = new Channel(0, multiplexer);
         new Thread(multiplexer, "Server-Multiplexer").start();
 
         ModifiedFileHistory history = new ModifiedFileHistory();
 
-        master = new ServerMaster(toClientChannel, logger, history);
+        master = new ServerMaster(toClientChannel, logger, history, templateDir);
 
         // Slave is a child thread, master is the current thread.
-        logger.log("Spawning slave thread");
-        slave = new ServerSlave(fromClientChannel, master, logger, history);
+        logger.debug("Spawning slave thread");
+        slave = new Reactor(fromClientChannel, master, logger, history);
         new Thread(slave, "Server-Slave").start();
     }
 
