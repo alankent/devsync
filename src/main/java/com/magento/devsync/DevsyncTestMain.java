@@ -18,7 +18,7 @@ public class DevsyncTestMain {
         boolean debugging = true;
         if (debugging) {
             try {
-                new Thread(new Runnable() { 
+                Thread serverThread = new Thread(new Runnable() { 
                     public void run() {
                         try {
                             DevsyncServerMain.main(new String[] {
@@ -31,7 +31,9 @@ public class DevsyncTestMain {
                             e.printStackTrace();
                         }
                     }
-                }, "Server-Main-Program").start();
+                }, "Server-Main-Program");
+                serverThread.setDaemon(true);
+                serverThread.start();
                 Thread.sleep(1);
             } catch (Exception e1) {
                 e1.printStackTrace();

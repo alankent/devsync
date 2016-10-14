@@ -2,6 +2,7 @@ package com.magento.devsync.client;
 
 import java.io.IOException;
 
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.Requestor;
 import com.magento.devsync.communications.SyncTreeWalker;
@@ -12,7 +13,7 @@ import com.magento.devsync.config.YamlFile;
  * client to server, (2) Tell server to send updates from server to client, (3)
  * After server has finished, start watching the local file system
  */
-public class ClientFileSync implements Runnable {
+public class ClientFileSync {
 
     private Logger logger;
     private Requestor requestor;
@@ -28,8 +29,7 @@ public class ClientFileSync implements Runnable {
         this.logger = logger;
     }
 
-    @Override
-    public void run() {
+    public void run() throws ConnectionLost {
 
         // Step one, do a client side sync files to server.
         logger.infoVerbose("* Starting client->server sync");

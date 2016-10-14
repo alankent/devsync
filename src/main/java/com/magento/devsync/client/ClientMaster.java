@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 import com.magento.devsync.communications.Channel;
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.ProtocolSpec;
 import com.magento.devsync.communications.Requestor;
@@ -13,7 +14,7 @@ import com.magento.devsync.filewatcher.ModifiedFileHistory;
 /**
  * This class drives the client conversation to the server process.
  */
-public class ClientMaster implements Runnable {
+public class ClientMaster {
 
     private Requestor requestor;
     private YamlFile config;
@@ -31,7 +32,7 @@ public class ClientMaster implements Runnable {
         clientPathResolver = new ClientPathResolver();
     }
     
-    public void preConfigHandshake(boolean forceInitialization) {
+    public void preConfigHandshake(boolean forceInitialization) throws ConnectionLost {
         
         // Send the protocol version (which will cause server to exit if its wrong).
         logger.debug("Checking protocol compatibility");
@@ -67,8 +68,9 @@ public class ClientMaster implements Runnable {
      * Main execution of client - listens for requests from the server
      * which can come at any time, plus goes through the phases of file
      * syncing.
+     * @throws ConnectionLost 
      */
-    public void run() {
+    public void run() throws ConnectionLost {
 
         // Send configuration settings to the server.
         logger.infoVerbose("Setting configuration");

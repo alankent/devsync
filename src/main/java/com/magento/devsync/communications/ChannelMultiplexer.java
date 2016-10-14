@@ -35,10 +35,11 @@ public class ChannelMultiplexer implements Runnable {
     /**
      * Send a message. Unlike receiving messages, the message to be sent is not
      * queued - it is done immediately.
+     * @throws ConnectionLost 
      */
-    public void send(int channelNumber, MessageWriter msg) throws IOException {
+    public void send(int channelNumber, MessageWriter msg) throws IOException, ConnectionLost {
         if (output == null) {
-            throw new RuntimeException("Cannot write to closed socket.");
+            throw new ConnectionLost(new RuntimeException("Cannot write to closed socket."));
         }
         byte[] payload = msg.toByteArray();
         ByteBuffer lenBuf = ByteBuffer.allocate(1 + Integer.BYTES);
@@ -78,14 +79,17 @@ public class ChannelMultiplexer implements Runnable {
     private void closeEverything() {
         synchronized (writeLock) {
             try {
-                output.close();
-                output = null;
+                if (output != null) {
+                    output.close();
+                }
             } catch (IOException e) {
                 // Ignore any problems closing the sockets.
             }
         }
         try {
-            input.close();
+            if (input != null) {
+                input.close();
+            }
         } catch (IOException e) {
             // Ignore any problems closing the sockets.
         }

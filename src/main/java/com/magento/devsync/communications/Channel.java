@@ -18,8 +18,9 @@ public class Channel {
 
     /**
      * You send messages from the thread you are on.
+     * @throws ConnectionLost 
      */
-    public void send(MessageWriter msg) throws IOException {
+    public void send(MessageWriter msg) throws IOException, ConnectionLost {
 //        System.out.println("Channel:send(); " + channelNumber);
         multiplexer.send(channelNumber, msg);
     }
@@ -27,8 +28,9 @@ public class Channel {
     /**
      * Responses
      * @return
+     * @throws ConnectionLost 
      */
-    synchronized public MessageReader receive() {
+    synchronized public MessageReader receive() throws ConnectionLost {
         while (responses.isEmpty()) {
             try {
                 wait();
@@ -36,7 +38,13 @@ public class Channel {
                 // Ignore
             }
         }
-        return responses.remove(0);
+        
+        MessageReader resp = responses.get(0);
+        if (resp == null) {
+            throw new ConnectionLost(new RuntimeException("Found socket closed when tried to read."));
+        }
+        responses.remove(0);
+        return resp;
     }
 
     synchronized protected void addReceivedMessage(MessageReader msg) {

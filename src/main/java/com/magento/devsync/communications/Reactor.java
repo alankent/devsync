@@ -255,7 +255,7 @@ public class Reactor implements Runnable {
         }
     }
 
-    private void processWriteMessage(MessageReader msg) throws IOException {
+    private void processWriteMessage(MessageReader msg) throws IOException, ConnectionLost {
 
         boolean eof = msg.getBoolean();
         int length = msg.getInt();
@@ -315,7 +315,7 @@ public class Reactor implements Runnable {
         return true;
     }
 
-    private void pathFingerprint(final String path, final String remoteFingerprint) throws IOException {
+    private void pathFingerprint(final String path, final String remoteFingerprint) throws IOException, ConnectionLost {
         File localPath = pathResolver.clientPathToFile(path);
         logger.debugVerbose(". fingerprint " + path + " => " + localPath);
         if (localPath.exists()) {
@@ -355,7 +355,7 @@ public class Reactor implements Runnable {
         }
     }
 
-    private void createDirectory(String path) throws IOException {
+    private void createDirectory(String path) throws IOException, ConnectionLost {
         File f = pathResolver.clientPathToFile(path);
         if (f.isDirectory()) {
             // Already exists as directory
@@ -373,14 +373,14 @@ public class Reactor implements Runnable {
         }
     }
 
-    private void respondOk() throws IOException {
+    private void respondOk() throws IOException, ConnectionLost {
         logger.debugVerbose("RESP: OK");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.OK);
         channel.send(msg);
     }
 
-    private void respondNotOk(String message) throws IOException {
+    private void respondNotOk(String message) throws IOException, ConnectionLost {
         logger.debugVerbose("RESP: NOT_OK: " + message);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.NOT_OK);
@@ -388,7 +388,7 @@ public class Reactor implements Runnable {
         channel.send(msg);
     }
 
-    private void respondNotOk(Exception e) throws IOException {
+    private void respondNotOk(Exception e) throws IOException, ConnectionLost {
         logger.debugVerbose("RESP: NOT_OK: (internal error) " + e.getMessage());
         e.printStackTrace();
         MessageWriter msg = new MessageWriter();

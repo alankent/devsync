@@ -10,7 +10,7 @@ import com.magento.devsync.filewatcher.FileWatcher;
 import com.magento.devsync.filewatcher.FileWatcherListener;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
-public class FileSync implements Runnable {
+public class FileSync {
 
     private YamlFile config;
     private PathResolver pathResolver;
@@ -28,14 +28,11 @@ public class FileSync implements Runnable {
         this.modifiedFileHistory = modifiedFileHistory;
     }
 
-    @Override
-    public void run() {
+    public void run() throws ConnectionLost {
         FileWatcher watcher;
         try {
             watcher = new FileWatcher(config, pathResolver, new FileSyncListener(), filter, modifiedFileHistory, logger);
-
             watcher.run();
-
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -45,18 +42,17 @@ public class FileSync implements Runnable {
     private final class FileSyncListener implements FileWatcherListener {
 
         @Override
-        public void fileDeleted(String path) {
+        public void fileDeleted(String path) throws ConnectionLost {
             try {
                 logger.infoVerbose("Removing: " + path);
                 requestor.pathDeleted(path);
             } catch (IOException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+                throw new ConnectionLost(e);
             }
         }
 
         @Override
-        public void fileChanged(String path) {
+        public void fileChanged(String path) throws ConnectionLost {
             try {
                 File f = pathResolver.clientPathToFile(path);
                 if (modifiedFileHistory.beingWrittenTo(path)) {
@@ -78,7 +74,7 @@ public class FileSync implements Runnable {
         }
 
         @Override
-        public void directoryDeleted(String path) {
+        public void directoryDeleted(String path) throws ConnectionLost {
             try {
                 logger.infoVerbose("Removing: " + path);
                 requestor.pathDeleted(path);
@@ -89,7 +85,7 @@ public class FileSync implements Runnable {
         }
 
         @Override
-        public void directoryCreated(String path) {
+        public void directoryCreated(String path) throws ConnectionLost {
             try {
                 logger.infoVerbose("Creating: " + path);
                 requestor.createDirectory(path);
@@ -105,7 +101,7 @@ public class FileSync implements Runnable {
             }
         }
 
-        private void walkNewDirectoryTree(String path) throws IOException {
+        private void walkNewDirectoryTree(String path) throws IOException, ConnectionLost {
             for (File f : pathResolver.clientPathToFile(path).listFiles()) {
                 String child = PathResolver.joinPath(path, f.getName());
                 if (Files.isDirectory(f.toPath(), LinkOption.NOFOLLOW_LINKS)) {

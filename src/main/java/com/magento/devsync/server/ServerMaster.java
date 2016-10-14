@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 import com.magento.devsync.communications.Channel;
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.PathResolver;
 import com.magento.devsync.communications.Requestor;
@@ -11,7 +12,7 @@ import com.magento.devsync.communications.SyncTreeWalker;
 import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
-public class ServerMaster implements Runnable {
+public class ServerMaster {
 
     private Requestor requestor;
     private YamlFile config;
@@ -36,8 +37,7 @@ public class ServerMaster implements Runnable {
         fileWatcher = new ServerFileWatcher(config, pathResolver, requestor, logger, modifiedFileHistory);
     }
 
-    @Override
-    public void run() {
+    public void run() throws ConnectionLost {
 
         // Wait for client to tell us to start doing a sync pass.
         synchronized (lock) {
@@ -81,14 +81,14 @@ public class ServerMaster implements Runnable {
         }
     }
     
-    public void initializeProject() {
+    public void initializeProject() throws ConnectionLost {
         if (templateDir == null) {
             return;
         }
         fileWalk(".");
     }
     
-    private void fileWalk(String path) {
+    private void fileWalk(String path) throws ConnectionLost {
         File f = new File(PathResolver.joinPath(templateDir, path));
         if (!f.exists()) {
             logger.info("Project initilaization template directory does not exist: " + templateDir);

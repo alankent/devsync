@@ -20,7 +20,7 @@ public class Requestor {
         this.logger = logger;
     }
 
-    public boolean checkProtocolVersion(int version) throws IOException {
+    public boolean checkProtocolVersion(int version) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Check protocol version");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.CHECK_PROTOCOL_VERSION);
@@ -29,7 +29,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean setConfig(YamlFile config) throws IOException {
+    public boolean setConfig(YamlFile config) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Send configuration file to server");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.SET_CONFIG);
@@ -38,7 +38,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean errorMessage(String message) throws IOException {
+    public boolean errorMessage(String message) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Error: " + message);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.ERROR_MESSAGE);
@@ -47,7 +47,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean initializeProject() throws IOException {
+    public boolean initializeProject() throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Initialize project");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.INITIALIZE_PROJECT);
@@ -55,7 +55,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean initialSync() throws IOException {
+    public boolean initialSync() throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Trigger server initial sync");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.START_SERVER_SYNC);
@@ -63,7 +63,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean syncComplete(int syncFileCount) throws IOException {
+    public boolean syncComplete(int syncFileCount) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Server sync complete");
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.SERVER_SYNC_COMPLETE);
@@ -72,7 +72,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    public boolean pathFingerprint(String path, boolean canExecute, File contents, String fingerprint) throws IOException {
+    public boolean pathFingerprint(String path, boolean canExecute, File contents, String fingerprint) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Fingerprint: " + path + " " + fingerprint);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.PATH_FINGERPRINT);
@@ -100,7 +100,7 @@ public class Requestor {
         }
     }
 
-    public boolean pathDeleted(String path) throws IOException {
+    public boolean pathDeleted(String path) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Delete: " + path);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.PATH_DELETED);
@@ -143,7 +143,8 @@ public class Requestor {
                 msg.putByte(ProtocolSpec.MORE_DATA);
             }
         } catch (Exception e) {
-            logger.debugVerbose("Problem reading " + contents);
+            logger.debug("Problem reading " + contents);
+            logger.debug(e);
             return false;
         }
         return true;
@@ -163,7 +164,7 @@ public class Requestor {
         return offset;
     }
 
-    public boolean createDirectory(String path) throws IOException {
+    public boolean createDirectory(String path) throws IOException, ConnectionLost {
         logger.debugVerbose("SEND: Create directory: " + path);
         MessageWriter msg = new MessageWriter();
         msg.putByte(ProtocolSpec.CREATE_DIRECTORY);
@@ -172,7 +173,7 @@ public class Requestor {
         return receiveOkOrNotOk();
     }
 
-    private boolean receiveOkOrNotOk() {
+    private boolean receiveOkOrNotOk() throws ConnectionLost {
         MessageReader resp = channel.receive();
         int cmd = resp.getByte();
         if (cmd == ProtocolSpec.OK) {

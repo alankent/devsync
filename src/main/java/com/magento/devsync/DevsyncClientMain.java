@@ -68,14 +68,18 @@ public class DevsyncClientMain {
                 ChannelMultiplexer multiplexer = new ChannelMultiplexer(sock);
                 Channel toServerChannel = new Channel(0, multiplexer);
                 Channel fromServerChannel = new Channel(1, multiplexer);
-                new Thread(multiplexer, "Client-Multiplexer").start();
+                Thread multiThread = new Thread(multiplexer, "Client-Multiplexer");
+                multiThread.setDaemon(true);
+                multiThread.start();
 
                 ModifiedFileHistory history = new ModifiedFileHistory();
 
                 // We are going to start communicating before loading config file,
                 // as we may download it from the server.
                 Reactor slave = new Reactor(fromServerChannel, logger, history);
-                new Thread(slave, "Client-Slave").start();
+                Thread slaveThread = new Thread(slave, "Client-Slave");
+                slaveThread.setDaemon(true);
+                slaveThread.start();
 
                 ClientMaster master = new ClientMaster(toServerChannel, logger, history);
                 master.preConfigHandshake(forceProjectInitialization);
@@ -88,15 +92,19 @@ public class DevsyncClientMain {
 
                 slave.setClientMaster(master);
                 master.run();
+                System.exit(0);
 
             } catch (ConnectException e) {
                 logger.warn("Failed to connect to server.");
                 logger.debug(e);
+                System.exit(1);
             } catch (Exception e) {
                 logger.warn(e);
+                System.exit(1);
             }
         } catch (Exception e) {
             logger.warn(e);
+            System.exit(1);
         }
     }
 

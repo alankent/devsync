@@ -15,14 +15,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.PathResolver;
 import com.magento.devsync.config.Mount;
 import com.magento.devsync.config.SyncRule;
 import com.magento.devsync.config.YamlFile;
 
-public class FileWatcher implements Runnable {
+public class FileWatcher {
 
     private YamlFile config;
     private PathResolver pathResolver;
@@ -33,6 +35,7 @@ public class FileWatcher implements Runnable {
     private Filter filter;
     private Logger logger;
     private ModifiedFileHistory history;
+    private String bufferedFileNotification;
 
     public static interface Filter {
         /**
@@ -53,9 +56,8 @@ public class FileWatcher implements Runnable {
         watchService = FileSystems.getDefault().newWatchService();
     }
 
-    @Override
-    public void run() {
-
+    public void run() throws ConnectionLost {
+        
         // Register listeners
         for (Mount m : config.mounts) {
             for (SyncRule sr : m.watch) {
@@ -118,16 +120,36 @@ public class FileWatcher implements Runnable {
 
     /**
      * Process all events for keys queued to the watcher
+     * @throws ConnectionLost 
      */
-    void processEvents() {
+    void processEvents() throws ConnectionLost {
+        
+        bufferedFileNotification = null;
 
         // Loop forever.
         while (true) {
 
             // wait for key to be signalled
-            WatchKey key;
+            WatchKey key = null;
             try {
-                key = watchService.take();
+                // Merge consecutive events for the same file.
+                if (bufferedFileNotification == null) {
+                    // If nothing buffered, just block waiting for event
+                    logger.debugVerbose("Waiting for next FS change.");
+                    key = watchService.take();
+                } else {
+                    // If something in buffer, poll for a short period.
+                    logger.debugVerbose("Polling for next FS change.");
+                    key = watchService.poll(500, TimeUnit.MILLISECONDS);
+                    if (key == null) {
+                        // Nothing more came through, flush the buffer
+                        // and block waiting for next file change.
+                        logger.debugVerbose("FS poll timed out.");
+                        flushBuffer();
+                        logger.debugVerbose("Blocking for next FS change.");
+                        key = watchService.take();
+                    }
+                }
                 logger.debugVerbose("Got a watch key!");
                 history.removeExpiredEntries();
             } catch (InterruptedException x) {
@@ -173,6 +195,7 @@ public class FileWatcher implements Runnable {
 
                     // Process the event
                     if (Files.isDirectory(Paths.get(child), LinkOption.NOFOLLOW_LINKS)) {
+                        flushBuffer();
                         if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
                             listener.directoryCreated(child);
                         } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
@@ -182,12 +205,29 @@ public class FileWatcher implements Runnable {
                         }
                     } else {
                         // Its a plain file.
-                        if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-                            listener.fileChanged(child);
-                        } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+                        if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+                            if (bufferedFileNotification != null
+                                    && bufferedFileNotification.equals(child)) {
+                                logger.debugVerbose("Not writing file to be deleted: " + bufferedFileNotification);
+                                bufferedFileNotification = null;
+                            }
+                            flushBuffer();
                             listener.fileDeleted(child);
-                        } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
-                            listener.fileChanged(child);
+                        } else if (kind == StandardWatchEventKinds.ENTRY_CREATE
+                                || kind == StandardWatchEventKinds.ENTRY_MODIFY) {
+                            if (bufferedFileNotification != null) {
+                                // Flush if different, drop old event if same as
+                                // new event.
+                                if (!bufferedFileNotification.equals(child)) {
+                                    logger.debugVerbose("Buffered file " + bufferedFileNotification + " not same as " + child);
+                                    flushBuffer();
+                                } else {
+                                    // Do nothing, causing old event to be discarded
+                                    logger.debugVerbose("Merging events for buffered file " + bufferedFileNotification);
+                                }
+                            }
+                            logger.debugVerbose("Buffer set to " + child);
+                            bufferedFileNotification = child;
                         }
                     }
                 }
@@ -203,6 +243,14 @@ public class FileWatcher implements Runnable {
                     break;
                 }
             }
+        }
+    }
+    
+    private void flushBuffer() throws ConnectionLost {
+        if (bufferedFileNotification != null) {
+            logger.debugVerbose("Flushing buffered file change: " + bufferedFileNotification);
+            listener.fileChanged(bufferedFileNotification);
+            bufferedFileNotification = null;
         }
     }
 

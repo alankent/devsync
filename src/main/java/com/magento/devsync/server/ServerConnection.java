@@ -5,6 +5,7 @@ import java.net.Socket;
 
 import com.magento.devsync.communications.Channel;
 import com.magento.devsync.communications.ChannelMultiplexer;
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.Reactor;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
@@ -27,7 +28,9 @@ public class ServerConnection implements Runnable {
         ChannelMultiplexer multiplexer = new ChannelMultiplexer(socket);
         Channel toClientChannel = new Channel(1, multiplexer);
         Channel fromClientChannel = new Channel(0, multiplexer);
-        new Thread(multiplexer, "Server-Multiplexer").start();
+        Thread multiThread = new Thread(multiplexer, "Server-Multiplexer");
+        multiThread.setDaemon(true);
+        multiThread.start();
 
         ModifiedFileHistory history = new ModifiedFileHistory();
 
@@ -36,11 +39,17 @@ public class ServerConnection implements Runnable {
         // Slave is a child thread, master is the current thread.
         logger.debug("Spawning slave thread");
         slave = new Reactor(fromClientChannel, master, logger, history);
-        new Thread(slave, "Server-Slave").start();
+        Thread slaveThread = new Thread(slave, "Server-Slave");
+        slaveThread.setDaemon(true);
+        slaveThread.start();
     }
 
     @Override
     public void run() {
-        master.run();
+        try {
+            master.run();
+        } catch (ConnectionLost e) {
+            // Lost connection, exit.
+        }
     }
 }

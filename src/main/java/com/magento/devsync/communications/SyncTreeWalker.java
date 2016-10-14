@@ -28,7 +28,7 @@ public class SyncTreeWalker {
         this.logger = logger;
     }
 
-    public void clientToServerWalk() {
+    public void clientToServerWalk() throws ConnectionLost {
         for (Mount m : config.mounts) {
             for (List<SyncRule> syncRules : Arrays.asList(m.once, m.watch)) {
                 for (SyncRule sr : syncRules) {
@@ -40,7 +40,7 @@ public class SyncTreeWalker {
         }
     }
 
-    public void serverToClientWalk() {
+    public void serverToClientWalk() throws ConnectionLost {
         for (Mount m : config.mounts) {
             for (List<SyncRule> syncRules : Arrays.asList(m.once, m.watch)) {
                 for (SyncRule sr : syncRules) {
@@ -52,7 +52,7 @@ public class SyncTreeWalker {
         }
     }
 
-    public void fileWalk(String path, List<String> exclude) {
+    public void fileWalk(String path, List<String> exclude) throws ConnectionLost {
         if (exclude.contains(path)) {
             return;
         }

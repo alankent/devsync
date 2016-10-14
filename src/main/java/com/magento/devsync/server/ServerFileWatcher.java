@@ -1,5 +1,6 @@
 package com.magento.devsync.server;
 
+import com.magento.devsync.communications.ConnectionLost;
 import com.magento.devsync.communications.FileSync;
 import com.magento.devsync.communications.Logger;
 import com.magento.devsync.communications.PathResolver;
@@ -10,7 +11,7 @@ import com.magento.devsync.config.YamlFile;
 import com.magento.devsync.filewatcher.FileWatcher.Filter;
 import com.magento.devsync.filewatcher.ModifiedFileHistory;
 
-public class ServerFileWatcher implements Runnable {
+public class ServerFileWatcher {
 
     private FileSync fileSync;
 
@@ -26,8 +27,7 @@ public class ServerFileWatcher implements Runnable {
         }, logger, modifiedFileHistory);
     }
 
-    @Override
-    public void run() {
+    public void run() throws ConnectionLost {
         fileSync.run();
     }
 

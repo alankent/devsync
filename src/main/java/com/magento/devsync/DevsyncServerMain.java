@@ -69,7 +69,9 @@ public class DevsyncServerMain {
 
                 // Spawn a new thread per socket connection.
                 ServerConnection s = new ServerConnection(clientSocket, logger, templateDir);
-                new Thread(s, "Server-Socket").start();
+                Thread serverThread = new Thread(s, "Server-Socket");
+                serverThread.setDaemon(true);
+                serverThread.start();
             }
         }
     }
